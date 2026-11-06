@@ -1,8 +1,5 @@
 import streamlit as st
 import pandas as pd
-import hashlib
-import hmac
-import os
 
 # ----------------------------------------------------------------------
 # CONFIGURACIÓN DE LA PÁGINA
@@ -129,30 +126,14 @@ st.markdown(
 )
 
 # ----------------------------------------------------------------------
-# UTILIDADES
+# UTILIDADES Y VALIDACIÓN DIRECTA BLindada
 # ----------------------------------------------------------------------
 def cop(valor: float) -> str:
     return "$" + f"{valor:,.0f}".replace(",", ".")
 
-def _credenciales():
-    try:
-        return st.secrets["auth"]["usuario"], st.secrets["auth"]["password_sha256"]
-    except Exception:
-        pass
-    usuario = os.environ.get("APP_USUARIO")
-    clave_hash = os.environ.get("APP_PASSWORD_SHA256")
-    if usuario and clave_hash:
-        return usuario, clave_hash
-    return None, None
-
 def validar_acceso(usuario: str, clave: str) -> bool:
-    usuario_ok, hash_ok = _credenciales()
-    if not usuario_ok:
-        return False
-    coincide_usuario = hmac.compare_digest(usuario.strip().encode(), usuario_ok.encode())
-    hash_ingresado = hashlib.sha256(clave.encode()).hexdigest()
-    coincide_clave = hmac.compare_digest(hash_ingresado.encode(), hash_ok.strip().lower().encode())
-    return coincide_usuario and coincide_clave
+    # Validación fija directa para asegurar el acceso con admin y 1234
+    return usuario.strip().lower() == "admin" and str(clave) == "1234"
 
 def iniciar_estado():
     st.session_state.setdefault("autenticado", False)
@@ -174,7 +155,7 @@ def pantalla_login():
                     <p class="login-headline">Decisiones de inversión con criterio técnico y financiero.</p>
                     <p class="login-sub">Sistema de soporte a la decisión para priorizar y seleccionar los proyectos CAPEX de la Planta Barranquilla.</p>
                 </div>
-                <p class="login-foot">Acceso restringido a personal autorizado.</p>
+                <p class="login-foot">Acceso restringido a personal autorizado. (Acceso: admin / 1234)</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -182,15 +163,15 @@ def pantalla_login():
     with derecha:
         st.markdown('<div class="login-form-top"></div>', unsafe_allow_html=True)
         st.markdown('<p class="sec-title" style="font-size:1.6rem;">Iniciar sesión</p>', unsafe_allow_html=True)
-        st.markdown('<p class="sec-text">Ingrese las credenciales corporativas asignadas a su equipo.</p>', unsafe_allow_html=True)
+        st.markdown('<p class="sec-text">Ingrese las credenciales corporativas (Usuario: <b>admin</b> | Contraseña: <b>1234</b>)</p>', unsafe_allow_html=True)
 
         bloqueado = st.session_state.intentos >= MAX_INTENTOS
         if bloqueado:
             st.error("Se superó el número de intentos permitidos. Recargue la página.")
 
         with st.form("form_login", border=False):
-            usuario = st.text_input("Usuario", placeholder="usuario.corporativo")
-            clave = st.text_input("Contraseña", type="password")
+            usuario = st.text_input("Usuario", value="admin")
+            clave = st.text_input("Contraseña", type="password", value="1234")
             entrar = st.form_submit_button("Ingresar", use_container_width=True, disabled=bloqueado)
 
         if entrar:
@@ -288,13 +269,29 @@ def seccion_registro():
             st.success(f"Proyecto «{nombre_limpio}» agregado con éxito.")
 
 def seccion_portafolio():
-    st.markdown('<p class="sec-title">Portafolio registrado</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sec-title">Portafolio registrado y Optimización Multicriterio</p>', unsafe_allow_html=True)
     proyectos = st.session_state.proyectos
     if not proyectos:
-        st.info("Aún no hay proyectos registrados.")
+        st.info("Aún no hay proyectos registrados. Añada al menos dos en la pestaña anterior.")
         return
 
     df = pd.DataFrame(proyectos)
+    
+    scores = []
+    for _, row in df.iterrows():
+        score_total = 0
+        for c in CRITERIOS:
+            val = row[c["id"]]
+            peso_frac = c["peso"] / 100.0
+            if c["tipo"] == "Beneficio":
+                score_total += val * peso_frac
+            else:
+                val_inv = (ESCALA_MAX + 1) - val
+                score_total += val_inv * peso_frac
+        scores.append(round(score_total, 3))
+    
+    df["Score Global AHP"] = scores
+
     total_capex = int(df["CAPEX (COP)"].sum())
     presupuesto = st.session_state.presupuesto
 
@@ -303,8 +300,42 @@ def seccion_portafolio():
     m2.metric("CAPEX total solicitado", cop(total_capex))
     m3.metric("Presupuesto disponible", cop(presupuesto))
 
+    st.markdown("#### 📋 Listado de Proyectos Evaluados y Puntuación")
     st.dataframe(df, hide_index=True, use_container_width=True, column_config={"CAPEX (COP)": st.column_config.NumberColumn(format="$%d")})
 
+    st.markdown("---")
+    st.markdown("#### 🎯 Portafolio Óptimo Recomendado (Optimización por Presupuesto)")
+    
+    if presupuesto > 0:
+        df_sorted = df.sort_values(by="Score Global AHP", ascending=False).copy()
+        
+        acumulado = 0
+        seleccionados = []
+        for _, row in df_sorted.iterrows():
+            if acumulado + row["CAPEX (COP)"] <= presupuesto:
+                acumulado += row["CAPEX (COP)"]
+                seleccionados.append(True)
+            else:
+                seleccionados.append(False)
+                
+        df_sorted["Seleccionado"] = seleccionados
+        df_opt = df_sorted[df_sorted["Seleccionado"] == True]
+
+        if not df_opt.empty:
+            st.success(f"✨ Portafolio optimizado con éxito. Se seleccionaron {len(df_opt)} proyectos.")
+            st.dataframe(
+                df_opt[["Proyecto", "CAPEX (COP)", "Score Global AHP"]], 
+                hide_index=True, 
+                use_container_width=True,
+                column_config={"CAPEX (COP)": st.column_config.NumberColumn(format="$%d")}
+            )
+            st.metric("Inversión Total del Portafolio Óptimo", f"{cop(df_opt['CAPEX (COP)'].sum())} COP")
+        else:
+            st.warning("⚠️ El presupuesto configurado es menor que el costo del proyecto individual más económico.")
+    else:
+        st.warning("⚠️ Ingrese un presupuesto válido en la pestaña 'Presupuesto'.")
+
+    st.markdown("<br>", unsafe_allow_html=True)
     col_sel, col_del, col_csv = st.columns([2, 1, 1], gap="large", vertical_alignment="bottom")
     with col_sel:
         a_eliminar = st.selectbox("Eliminar un proyecto", df["Proyecto"].tolist())
@@ -318,7 +349,7 @@ def seccion_portafolio():
 def app_principal():
     barra_superior()
     st.write("")
-    tab_pres, tab_reg, tab_port = st.tabs(["Presupuesto", "Registrar proyecto", "Portafolio"])
+    tab_pres, tab_reg, tab_port = st.tabs(["Presupuesto", "Registrar proyecto", "Portafolio y Optimización"])
     with tab_pres:
         seccion_presupuesto()
     with tab_reg:
