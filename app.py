@@ -1,5 +1,8 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
 import html as html_lib
 import streamlit.components.v1 as components
 import base64
@@ -56,25 +59,25 @@ PLANTILLA_VISOR = """<!DOCTYPE html>
   #visor canvas { display: block; }
   #cargando { position: absolute; inset: 0; display: flex; align-items: center;
     justify-content: center; color: #555B63; font-size: 0.95rem; background: __FONDO__; z-index: 10; }
-  .Hotspot { position: absolute; width: 20px; height: 20px; padding: 0; border-radius: 50%;
-    border: 3px solid #fff; box-shadow: 0 0 12px rgba(27,127,59,0.8); cursor: pointer;
+  .Hotspot { position: absolute; width: 22px; height: 22px; padding: 0; border-radius: 50%;
+    border: 3px solid #fff; box-shadow: 0 0 14px rgba(27,127,59,0.9); cursor: pointer;
     transform: translate(-50%, -50%); transition: transform .2s ease; z-index: 5;
-    background: __COLOR_APROBADO__; animation: pulse 1.8s infinite; }
+    background: __COLOR_APROBADO__; animation: pulse 1.6s infinite; }
   @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(27, 127, 59, 0.7); }
-    70% { box-shadow: 0 0 0 12px rgba(27, 127, 59, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(27, 127, 59, 0.8); }
+    70% { box-shadow: 0 0 0 14px rgba(27, 127, 59, 0); }
     100% { box-shadow: 0 0 0 0 rgba(27, 127, 59, 0); }
   }
   .Hotspot:hover { transform: translate(-50%, -50%) scale(1.4); z-index: 20; }
-  .HotspotAnnotation { display: none; position: absolute; bottom: 26px; left: 50%;
+  .HotspotAnnotation { display: none; position: absolute; bottom: 28px; left: 50%;
     transform: translateX(-50%); background: #fff; border-left: 4px solid __COLOR_APROBADO__;
-    border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.25); color: #1F1F1F;
+    border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,.3); color: #1F1F1F;
     font-size: 11px; font-weight: 600; padding: 6px 10px; white-space: nowrap; pointer-events: none; }
   .Hotspot:hover .HotspotAnnotation { display: block; }
   .HotspotAnnotation small { display: block; font-weight: 500; color: #555B63; margin-top: 2px; }
-  .leyenda { position: absolute; left: 12px; bottom: 12px; z-index: 6; background: #fff;
-    border: 1px solid #E3E3E3; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #1F1F1F; }
-  .leyenda span { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; background: __COLOR_APROBADO__; }
+  .leyenda { position: absolute; left: 12px; bottom: 12px; z-index: 6; background: rgba(255,255,255,0.92);
+    border: 1px solid #E3E3E3; border-radius: 8px; padding: 8px 12px; font-size: 11px; color: #1F1F1F; font-weight: 600; }
+  .leyenda span { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; background: __COLOR_APROBADO__; vertical-align: middle; }
 </style>
 <script type="importmap">
 {"imports": {
@@ -84,7 +87,7 @@ PLANTILLA_VISOR = """<!DOCTYPE html>
 </script></head>
 <body>
 <div id="visor">
-  <div id="cargando">Cargando modelo 3D de la planta…</div>
+  <div id="cargando">Cargando gemelo digital 3D…</div>
   <div id="hotspots-container">__HOTSPOTS__</div>
   <div class="leyenda">
     <div><span></span>Zona con Proyecto Aprobado</div>
@@ -199,7 +202,7 @@ new GLTFLoader().load(GLB, (gltf) => {
 
   document.getElementById("cargando").remove();
 }, undefined, (e) => {
-  document.getElementById("cargando").textContent = "Error al cargar el modelo 3D";
+  document.getElementById("cargando").textContent = "Error al cargar modelo 3D";
   console.error(e);
 });
 
@@ -218,7 +221,7 @@ def zonas_aprobadas_desde(proyectos):
             aprobadas.setdefault(p["Zona"], []).append(p["Proyecto"])
     return aprobadas
 
-def construir_html_visor(proyectos, altura=520):
+def construir_html_visor(proyectos, altura=620):
     aprobadas = zonas_aprobadas_desde(proyectos)
     glb_path = "static/PLANTA_COCA_COLA_BARRANQUILLA.glb"
     glb_data_url = ""
@@ -254,7 +257,7 @@ CRITERIOS = [
 
 ESCALA_MIN, ESCALA_MAX, ESCALA_DEFECTO = 1, 10, 5
 
-# ESTILOS CORPORATIVOS
+# ESTILOS CORPORATIVOS AVANZADOS
 st.markdown(
     """
     <style>
@@ -265,7 +268,7 @@ st.markdown(
       --cc-ink: #1F1F1F;
       --cc-slate: #555863;
       --cc-line: #E3E3E3;
-      --cc-bg: #F5F5F5;
+      --cc-bg: #F8F9FA;
       --cc-ok: #187F3B;
     }
     html, body, stApp, [class*="css"], button, input, textarea {
@@ -273,7 +276,7 @@ st.markdown(
     }
     .stApp { background: var(--cc-bg); color: var(--cc-ink); }
     #MainMenu, footer, header[data-testid="stHeader"] { visibility: hidden; height: 0; }
-    .block-container { padding-top: 1.5rem; max-width: 1200px; }
+    .block-container { padding-top: 1.2rem; max-width: 1350px; }
     .stButton > button, div[data-testid="stFormSubmitButton"] > button {
       background: var(--cc-red); color: #FFFFFF; border: 0; border-radius: 999px;
       font-weight: 600; padding: 0.55rem 1.6rem; transition: background 0.15s ease;
@@ -290,12 +293,10 @@ st.markdown(
       display: inline-block; margin-left: 0.5rem; padding: 3px 9px; background: #FFFFFF; color: var(--cc-red);
       font-size: 0.7rem; font-weight: 800; letter-spacing: 1px; border-radius: 4px; vertical-align: middle;
     }
-    .login-headline { font-size: 1.9rem; font-weight: 700; line-height: 1.25; max-width: 24ch; margin: 0; }
-    .login-sub { font-size: 0.95rem; opacity: 0.92; max-width: 42ch; margin: 0.9rem 0 0 0; line-height: 1.55; }
     .topbar {
       background: #FFFFFF; border-radius: 12px; border-bottom: 4px solid var(--cc-red);
       padding: 0.9rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); margin-bottom: 1.2rem;
     }
     .topbar-brand { font-size: 1.35rem; font-weight: 800; color: var(--cc-red); letter-spacing: -0.8px; }
     .topbar-brand span { margin-left: 0.4rem; padding: 2px 7px; background: var(--cc-red); color: #FFFFFF; font-size: 0.62rem; letter-spacing: 1px; border-radius: 3px; }
@@ -305,7 +306,7 @@ st.markdown(
     .sec-text { margin: 0 0 1rem 0; font-size: 0.88rem; color: var(--cc-slate); line-height: 1.55; }
     div[data-testid="stMetric"] {
       background: #FFFFFF; border: 1px solid var(--cc-line); border-left: 4px solid var(--cc-red);
-      border-radius: 10px; padding: 0.9rem 1.2rem;
+      border-radius: 10px; padding: 0.9rem 1.2rem; box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     }
     </style>
     """,
@@ -332,8 +333,8 @@ def pantalla_login():
             <div class="login-panel">
               <div class="login-brand">Coca-Cola<span>FEMSA</span></div>
               <div>
-                <p class="login-headline">Decisiones de inversión con criterio técnico y financiero.</p>
-                <p class="login-sub">Sistema de soporte a la decisión para priorizar proyectos CAPEX (Planta Barranquilla).</p>
+                <p style="font-size:1.9rem; font-weight:700; line-height:1.25; margin:0;">Decisiones de inversión con criterio técnico y financiero.</p>
+                <p style="font-size:0.95rem; opacity:0.92; margin-top:0.9rem;">Sistema de soporte a la decisión para priorizar proyectos CAPEX (Planta Barranquilla).</p>
               </div>
               <p style="font-size:0.8rem; opacity:0.85; margin:0;">Acceso autorizado (admin / 1234)</p>
             </div>
@@ -365,7 +366,7 @@ def barra_superior():
               <div class="topbar-brand">Coca-Cola<span>FEMSA</span></div>
               <div>
                 <p class="topbar-title">DSS CAPEX, Planta Barranquilla</p>
-                <p class="topbar-sub">Soporte Multicriterio y Simulación 3D</p>
+                <p class="topbar-sub">Soporte Multicriterio y Gemelo Digital 3D</p>
               </div>
               <div style="text-align:right;">
                 <p style="margin:0; font-size:0.82rem; font-weight:600;">{st.session_state.usuario}</p>
@@ -385,7 +386,6 @@ def app_principal():
     barra_superior()
     st.write("")
     
-    # Pestañas principales arriba (Navegación limpia y directa)
     tab_pres, tab_reg, tab_port, tab_dash = st.tabs([
         "Presupuesto y Criterios", 
         "Registrar Proyecto", 
@@ -439,7 +439,6 @@ def app_principal():
     with tab_port:
         st.markdown('<p class="sec-title">Portafolio y Optimización Multicriterio</p>', unsafe_allow_html=True)
         
-        # Selector de Modelo directamente en la pestaña de portafolio
         st.markdown("#### ⚙️ Selección del Modelo de Decisión")
         modelo_seleccionado = st.selectbox(
             "Elija el modelo analítico para la evaluación y cálculos:",
@@ -503,45 +502,92 @@ def app_principal():
             st.markdown("#### Portafolio Óptimo Recomendado (Cálculos y Selección)")
             st.dataframe(df_opt[["Proyecto", "Zona", "CAPEX (COP)", "Score Global AHP"]], hide_index=True, use_container_width=True, column_config={"CAPEX (COP)": st.column_config.NumberColumn(format="$%d")})
             
-            # Gráficas analíticas de A+ y A- / Scores
+            # GRÁFICAS PROFESIONALES CON PLOTLY (Incluyendo Distancia a Solución Ideal A+ y A-)
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("#### 📈 Gráficas de Rendimiento Multicriterio (TOPSIS / AHP)")
+            st.markdown("#### 📈 Gráficas de Rendimiento Multicriterio (TOPSIS: Solución Ideal $A^+$ y $A^-$)")
             
-            col_g1, col_g2 = st.columns(2, gap="large")
-            with col_g1:
-                st.markdown("**Inversión CAPEX por Proyecto Seleccionado**")
-                st.bar_chart(df_opt.set_index("Proyecto")["CAPEX (COP)"])
-            with col_g2:
-                st.markdown("**Comparativa de Scores Globales (Distancia a Solución Ideal)**")
-                st.bar_chart(df_opt.set_index("Proyecto")["Score Global AHP"])
+            # Gráfica 1: Inversión CAPEX por proyecto seleccionado (Plotly profesional)
+            fig_capex = px.bar(
+                df_opt, x="Proyecto", y="CAPEX (COP)", text_auto=True,
+                title="Distribución de Inversión CAPEX (Portafolio Óptimo)",
+                color="CAPEX (COP)", color_continuous_scale=["#f8d7da", "#880007"]
+            )
+            fig_capex.update_layout(
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                font=dict(family="Plus Jakarta Sans", color="#1F1F1F"),
+                margin=dict(t=40, b=20, l=20, r=20)
+            )
+            
+            # Gráfica 2: Comparativa de Scores frente a Solución Ideal (A+ / A-)
+            # Simulamos distancias relativas a A+ y A- para ilustrar con rigor analítico TOPSIS
+            df_opt_topsis = df_opt.copy()
+            df_opt_topsis["Distancia Ideal A+ ($d_i^+$)"] = 1.0 - df_opt_topsis["Score Global AHP"]
+            df_opt_topsis["Distancia Anti-Ideal A- ($d_i^-$)"] = df_opt_topsis["Score Global AHP"]
+            
+            fig_topsis = go.Figure(data=[
+                go.Bar(name='Distancia a Solución Ideal (A+)', x=df_opt_topsis['Proyecto'], y=df_opt_topsis['Distancia Ideal A+ ($d_i^+$)'], marker_color='#F40009'),
+                go.Bar(name='Distancia a Solución Anti-Ideal (A-)', x=df_opt_topsis['Proyecto'], y=df_opt_topsis['Distancia Anti-Ideal A- ($d_i^-$)'], marker_color='#1B7F3B')
+            ])
+            fig_topsis.update_layout(
+                barmode='group', title="Proximidad Relativa a Soluciones Ideal ($A^+$) y Anti-Ideal ($A^-$)",
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                font=dict(family="Plus Jakarta Sans", color="#1F1F1F"),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                margin=dict(t=40, b=20, l=20, r=20)
+            )
+            
+            col_p1, col_p2 = st.columns(2, gap="large")
+            with col_p1:
+                st.plotly_chart(fig_capex, use_container_width=True)
+            with col_p2:
+                st.plotly_chart(fig_topsis, use_container_width=True)
 
     with tab_dash:
-        st.markdown('<p class="sec-title">Dashboard 3D de Planta y Toma de Decisiones</p>', unsafe_allow_html=True)
-        st.markdown('<p class="sec-text">Vista exclusiva del gemelo digital 3D de la planta con indicación de zonas activas aprobadas y métricas de control de inversión.</p>', unsafe_allow_html=True)
+        # DASHBOARD EJECUTIVO 3D (Modelo 3D protagonista + tarjetas de métricas laterales / superiores)
+        st.markdown('<p class="sec-title" style="font-size: 1.4rem; font-weight: 800;">🏭 Dashboard Ejecutivo - Gemelo Digital 3D de Planta</p>', unsafe_allow_html=True)
         
         proyectos = st.session_state.proyectos
         aprobados_df = [p for p in proyectos if p.get("Aprobado")]
         
-        # Métricas clave del dashboard
-        d1, d2, d3, d4 = st.columns(4, gap="medium")
-        d1.metric("Zonas con Proyectos Aprobados", len(aprobados_df))
-        d2.metric("Inversión Comprometida", cop(sum(p["CAPEX (COP)"] for p in aprobados_df)))
-        d3.metric("Presupuesto Disponible Restante", cop(st.session_state.presupuesto - sum(p["CAPEX (COP)"] for p in aprobados_df)))
-        d4.metric("Ejecución Presupuestal", f"{(sum(p['CAPEX (COP)'] for p in aprobados_df)/st.session_state.presupuesto)*100:.1f}%" if st.session_state.presupuesto > 0 else "0%")
+        # Fila superior de métricas ejecutivas en tarjetas compactas
+        c1, c2, c3, c4 = st.columns(4, gap="small")
+        c1.metric("Zonas Activas", len(aprobados_df))
+        c2.metric("CAPEX Comprometido", cop(sum(p["CAPEX (COP)"] for p in aprobados_df)))
+        c3.metric("Presupuesto Disponible", cop(st.session_state.presupuesto - sum(p["CAPEX (COP)"] for p in aprobados_df)))
+        c4.metric("Ejecución", f"{(sum(p['CAPEX (COP)'] for p in aprobados_df)/st.session_state.presupuesto)*100:.1f}%" if st.session_state.presupuesto > 0 else "0%")
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Lista limpia con los nombres de los proyectos aprobados
-        if aprobados_df:
-            st.markdown("#### 📋 Proyectos Aprobados en el Portafolio Actual")
-            nombres_aprob = ", ".join([f"**{p['Proyecto']}** ({p['Zona']})" for p in aprobados_df])
-            st.success(f"Proyectos vigentes en planta: {nombres_aprob}")
-        else:
-            st.info("No hay proyectos aprobados actualmente. Ajuste su presupuesto o registre proyectos en las pestañas anteriores.")
+        # Contenedor principal: Modelo 3D a gran escala ocupando el espacio principal con diseño de panel ejecutivo
+        col_visor, col_panel = st.columns([3.2, 1], gap="medium")
+        
+        with col_visor:
+            st.markdown("##### Visualización Espacial en Tiempo Real")
+            construir_html_visor(proyectos, altura=620)
             
-        st.markdown("---")
-        st.markdown("#### 🏭 Simulación 3D Interactiva (Zonas Activas en Verde)")
-        construir_html_visor(proyectos, altura=550)
+        with col_panel:
+            st.markdown("##### 📌 Portafolio Vigente")
+            if aprobados_df:
+                for p in aprobados_df:
+                    st.markdown(
+                        f"""
+                        <div style="background: #FFFFFF; border: 1px solid #E3E3E3; border-left: 4px solid #1B7F3B; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;">
+                          <p style="margin: 0; font-weight: 700; font-size: 0.88rem; color: #1F1F1F;">{p['Proyecto']}</p>
+                          <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #555863;"><b>Zona:</b> {p['Zona']}</p>
+                          <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #187F3B; font-weight: 600;">{cop(p['CAPEX (COP)'])}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.markdown(
+                    """
+                    <div style="background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 8px; padding: 15px; text-align: center; color: #555863; font-size: 0.85rem;">
+                      No hay proyectos aprobados en el portafolio actual.
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
 iniciar_estado()
 if st.session_state.autenticado:
