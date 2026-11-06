@@ -2,12 +2,12 @@ import streamlit as st
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Coca-Cola FEMSA | DSS CAPEX", 
+    page_title="Coca-Cola FEMSA | DSS CAPEX Planta Barranquilla", 
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Estilos limpios y modernos
+# Estilos limpios y modernos corporativos
 st.markdown("""
     <style>
     .main { background-color: #f8fafc; }
@@ -43,22 +43,33 @@ with col_info:
 with col_user:
     st.markdown("""
         <div style="text-align: right;">
-            <p style="margin: 0; font-weight: bold; color: #334155; font-size: 13px;">Liney Avendaño</p>
+            <p style="margin: 0; font-weight: bold; color: #334155; font-size: 13px;">Panel Gerencial</p>
             <p style="margin: 0; color: #10b981; font-size: 11px; font-weight: 600;">● Sistema Activo (Colombia)</p>
         </div>
     """, unsafe_allow_html=True)
 
 st.divider()
 
-# --- PANEL DE CONTROL ESTILO TARJETA ---
+# --- PANEL DE CONTROL CON ENTRADA EXACTA ---
 st.markdown("""
     <div class="corporate-card">
-        <h4 style="margin-top: 0; color: #1e293b;">🎛️ Parámetros de Planificación Financiera</h4>
-        <p style="color: #64748b; font-size: 13px;">Ajuste el límite de inversión para simular la asignación óptima de recursos en planta.</p>
+        <h4 style="margin-top: 0; color: #1e293b;">🎛️ Configuración de Escenarios de Inversión</h4>
+        <p style="color: #64748b; font-size: 13px;">Ingrese el monto exacto de presupuesto CAPEX disponible para habilitar la evaluación financiera de la planta.</p>
     </div>
 """, unsafe_allow_html=True)
 
-presupuesto = st.slider("Seleccione el Presupuesto CAPEX disponible (Millones COP)", 500, 3000, 1500, 100)
+# Campo numérico libre para que el usuario digite cualquier cifra exacta
+presupuesto_exacto = st.number_input(
+    "Presupuesto CAPEX disponible (COP)", 
+    min_value=0, 
+    value=1500000000, 
+    step=10000,
+    format="%d"
+)
 
-# Métrica limpia de resumen
-st.metric(label="Presupuesto Seleccionado para Evaluación", value=f"${presupuesto:,.0f} Millones COP", delta="Fase de Análisis")
+# Métrica dinámica reflejando la cifra exacta ingresada
+st.metric(
+    label="Tope de Inversión Configurado para el Análisis", 
+    value=f"${presupuesto_exacto:,.0f} COP", 
+    delta="Listo para Optimización"
+)
