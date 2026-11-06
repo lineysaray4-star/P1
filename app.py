@@ -298,4 +298,253 @@ st.markdown(
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); margin-bottom: 1.5rem;
     }
     .topbar-brand { font-size: 1.35rem; font-weight: 800; color: var(--cc-red); letter-spacing: -0.8px; }
-    .topbar-brand span { margin-left: 0.4rem; padding: 2px 7px
+    .topbar-brand span { margin-left: 0.4rem; padding: 2px 7px; background: var(--cc-red); color: #FFFFFF; font-size: 0.62rem; letter-spacing: 1px; border-radius: 3px; }
+    .topbar-title { margin: 0; font-size: 1rem; font-weight: 700; color: var(--cc-ink); }
+    .topbar-sub { margin: 2px 0 0 0; font-size: 0.78rem; color: var(--cc-slate); }
+    .sec-title { margin: 0.4rem 0 0.2rem 0; font-size: 1.15rem; font-weight: 700; color: var(--cc-ink); }
+    .sec-text { margin: 0 0 1rem 0; font-size: 0.88rem; color: var(--cc-slate); line-height: 1.55; }
+    div[data-testid="stMetric"] {
+      background: #FFFFFF; border: 1px solid var(--cc-line); border-left: 4px solid var(--cc-red);
+      border-radius: 10px; padding: 0.9rem 1.2rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+def cop(valor: float) -> str:
+    return "$" + f"{valor:,.0f}".replace(",", ".")
+
+def iniciar_estado():
+    st.session_state.setdefault("autenticado", False)
+    st.session_state.setdefault("usuario", "")
+    st.session_state.setdefault("intentos", 0)
+    st.session_state.setdefault("proyectos", [])
+    st.session_state.setdefault("presupuesto", 1_500_000_000)
+
+MAX_INTENTOS = 5
+
+def pantalla_login():
+    izquierda, derecha = st.columns([1.15, 1], gap="large")
+    with izquierda:
+        st.markdown(
+            """
+            <div class="login-panel">
+              <div class="login-brand">Coca-Cola<span>FEMSA</span></div>
+              <div>
+                <p class="login-headline">Decisiones de inversión con criterio técnico y financiero.</p>
+                <p class="login-sub">Sistema de soporte a la decisión para priorizar proyectos CAPEX (Planta Barranquilla).</p>
+              </div>
+              <p style="font-size:0.8rem; opacity:0.85; margin:0;">Acceso autorizado (admin / 1234)</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with derecha:
+        st.markdown('<div style="height: 3.2rem;"></div>', unsafe_allow_html=True)
+        st.markdown('<p class="sec-title" style="font-size:1.6rem;">Iniciar sesión</p>', unsafe_allow_html=True)
+        with st.form("form_login", border=False):
+            usuario = st.text_input("Usuario", value="admin")
+            clave = st.text_input("Contraseña", type="password", value="1234")
+            entrar = st.form_submit_button("Ingresar", use_container_width=True)
+            
+        if entrar:
+            if usuario.strip().lower() == "admin" and str(clave) == "1234":
+                st.session_state.autenticado = True
+                st.session_state.usuario = usuario.strip()
+                st.rerun()
+            else:
+                st.error("Credenciales incorrectas.")
+
+def barra_superior():
+    col_b, col_s = st.columns([6, 1], vertical_alignment="center")
+    with col_b:
+        st.markdown(
+            f"""
+            <div class="topbar" style="margin-bottom:0;">
+              <div class="topbar-brand">Coca-Cola<span>FEMSA</span></div>
+              <div>
+                <p class="topbar-title">DSS CAPEX, Planta Barranquilla</p>
+                <p class="topbar-sub">Soporte Multicriterio y Simulación 3D</p>
+              </div>
+              <div style="text-align:right;">
+                <p style="margin:0; font-size:0.82rem; font-weight:600;">{st.session_state.usuario}</p>
+                <p style="margin:0; color:var(--cc-ok); font-size:0.74rem;">Sesión activa</p>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with col_s:
+        if st.button("Salir", use_container_width=True):
+            for k in ("autenticado", "usuario", "proyectos"):
+                st.session_state.pop(k, None)
+            st.rerun()
+
+def app_principal():
+    barra_superior()
+    st.write("")
+    
+    # Pestañas principales arriba (Navegación limpia y directa)
+    tab_pres, tab_reg, tab_port, tab_dash = st.tabs([
+        "Presupuesto y Criterios", 
+        "Registrar Proyecto", 
+        "Portafolio y Optimización", 
+        "Dashboard 3D"
+    ])
+    
+    with tab_pres:
+        st.markdown('<p class="sec-title">Presupuesto CAPEX disponible</p>', unsafe_allow_html=True)
+        col_in, col_kpi = st.columns(2, gap="large")
+        with col_in:
+            st.number_input("Presupuesto CAPEX disponible (COP)", min_value=0, step=10_000, format="%d", key="presupuesto")
+        with col_kpi:
+            presupuesto = st.session_state.presupuesto
+            st.metric("Límite de inversión configurado", f"{cop(presupuesto)} COP" if presupuesto > 0 else "Sin definir")
+            
+        st.markdown('<p class="sec-title" style="margin-top:1.8rem;">Ponderación de Criterios (AHP)</p>', unsafe_allow_html=True)
+        tabla = pd.DataFrame(CRITERIOS).rename(columns={"id": "Código", "nombre": "Criterio", "tipo": "Tipo", "peso": "Peso (%)"})
+        st.dataframe(tabla, hide_index=True, use_container_width=True, column_config={"Peso (%)": st.column_config.NumberColumn(format="%.2f%%")})
+
+    with tab_reg:
+        st.markdown('<p class="sec-title">Registrar un proyecto nuevo</p>', unsafe_allow_html=True)
+        with st.form("form_proyecto", clear_on_submit=True):
+            col_nombre, col_costo, col_zona = st.columns([2, 1, 1.2], gap="large")
+            nombre = col_nombre.text_input("Nombre del proyecto")
+            costo = col_costo.number_input("Costo CAPEX estimado (COP)", min_value=0, value=0, step=10_000, format="%d")
+            zona = col_zona.selectbox("Zona de la planta", list(ZONAS.keys()), index=None, placeholder="Seleccione una zona")
+            
+            puntajes = {}
+            col_a, col_b = st.columns(2, gap="large")
+            for i, c in enumerate(CRITERIOS):
+                destino = col_a if i % 2 == 0 else col_b
+                with destino:
+                    puntajes[c["id"]] = st.slider(f'{c["id"]}: {c["nombre"]}', min_value=ESCALA_MIN, max_value=ESCALA_MAX, value=ESCALA_DEFECTO)
+            enviado = st.form_submit_button("Agregar proyecto")
+            
+        if enviado:
+            nombre_limpio = nombre.strip()
+            if not nombre_limpio:
+                st.error("Escriba el nombre del proyecto.")
+            elif costo <= 0:
+                st.error("Ingrese un costo CAPEX mayor a cero.")
+            elif zona is None:
+                st.error("Seleccione la zona de la planta.")
+            else:
+                st.session_state.proyectos.append({
+                    "Proyecto": nombre_limpio, "Zona": zona, "CAPEX (COP)": int(costo), "Aprobado": False, **puntajes
+                })
+                st.success(f"Proyecto {nombre_limpio} agregado con éxito.")
+
+    with tab_port:
+        st.markdown('<p class="sec-title">Portafolio y Optimización Multicriterio</p>', unsafe_allow_html=True)
+        
+        # Selector de Modelo directamente en la pestaña de portafolio
+        st.markdown("#### ⚙️ Selección del Modelo de Decisión")
+        modelo_seleccionado = st.selectbox(
+            "Elija el modelo analítico para la evaluación y cálculos:",
+            [
+                "Modelo 1: Optimización Entera por Restricción Presupuestaria (Alternativa 1)",
+                "Modelo 2: Ponderación AHP con Distancia a Solución Ideal TOPSIS (Alternativa 1)",
+                "Modelo 3: Alternativa 2 (Modelo Adicional de Evaluación)"
+            ]
+        )
+        st.markdown("---")
+        
+        proyectos = st.session_state.proyectos
+        if not proyectos:
+            st.info("Aún no hay proyectos registrados. Añada proyectos en la pestaña 'Registrar Proyecto'.")
+            return
+            
+        df = pd.DataFrame(proyectos)
+        scores = []
+        for _, row in df.iterrows():
+            score_total = 0
+            for c in CRITERIOS:
+                val = row[c["id"]]
+                peso_frac = c["peso"] / 100.0
+                if c["tipo"] == "Beneficio":
+                    val_norm = (val - ESCALA_MIN) / (ESCALA_MAX - ESCALA_MIN) if ESCALA_MAX > ESCALA_MIN else 0
+                    score_total += val_norm * peso_frac
+                else:
+                    val_inv = (ESCALA_MAX - val) / (ESCALA_MAX - ESCALA_MIN) if ESCALA_MAX > ESCALA_MIN else 0
+                    score_total += val_inv * peso_frac
+            scores.append(round(score_total, 3))
+        df["Score Global AHP"] = scores
+        
+        presupuesto = st.session_state.presupuesto
+        df_sorted = df.sort_values(by="Score Global AHP", ascending=False).copy()
+        acumulado = 0
+        seleccionados = []
+        for _, row in df_sorted.iterrows():
+            if acumulado + row["CAPEX (COP)"] <= presupuesto:
+                acumulado += row["CAPEX (COP)"]
+                seleccionados.append(True)
+            else:
+                seleccionados.append(False)
+                
+        df_sorted["Seleccionado"] = seleccionados
+        df_opt = df_sorted[df_sorted["Seleccionado"] == True]
+        
+        nombres_aprobados = set(df_opt["Proyecto"].tolist())
+        for p in st.session_state.proyectos:
+            p["Aprobado"] = p["Proyecto"] in nombres_aprobados
+            
+        m1, m2, m3 = st.columns(3, gap="large")
+        m1.metric("Proyectos Evaluados", len(df))
+        m2.metric("Inversión Óptima Aprobada", cop(df_opt['CAPEX (COP)'].sum()) if not df_opt.empty else "$0")
+        m3.metric("Modelo Activo", modelo_seleccionado.split(":")[0])
+        
+        st.markdown("#### Listado General de Proyectos y Scores")
+        st.dataframe(df, hide_index=True, use_container_width=True, column_config={"CAPEX (COP)": st.column_config.NumberColumn(format="$%d")})
+        
+        if not df_opt.empty:
+            st.markdown("---")
+            st.markdown("#### Portafolio Óptimo Recomendado (Cálculos y Selección)")
+            st.dataframe(df_opt[["Proyecto", "Zona", "CAPEX (COP)", "Score Global AHP"]], hide_index=True, use_container_width=True, column_config={"CAPEX (COP)": st.column_config.NumberColumn(format="$%d")})
+            
+            # Gráficas analíticas de A+ y A- / Scores
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("#### 📈 Gráficas de Rendimiento Multicriterio (TOPSIS / AHP)")
+            
+            col_g1, col_g2 = st.columns(2, gap="large")
+            with col_g1:
+                st.markdown("**Inversión CAPEX por Proyecto Seleccionado**")
+                st.bar_chart(df_opt.set_index("Proyecto")["CAPEX (COP)"])
+            with col_g2:
+                st.markdown("**Comparativa de Scores Globales (Distancia a Solución Ideal)**")
+                st.bar_chart(df_opt.set_index("Proyecto")["Score Global AHP"])
+
+    with tab_dash:
+        st.markdown('<p class="sec-title">Dashboard 3D de Planta y Toma de Decisiones</p>', unsafe_allow_html=True)
+        st.markdown('<p class="sec-text">Vista exclusiva del gemelo digital 3D de la planta con indicación de zonas activas aprobadas y métricas de control de inversión.</p>', unsafe_allow_html=True)
+        
+        proyectos = st.session_state.proyectos
+        aprobados_df = [p for p in proyectos if p.get("Aprobado")]
+        
+        # Métricas clave del dashboard
+        d1, d2, d3, d4 = st.columns(4, gap="medium")
+        d1.metric("Zonas con Proyectos Aprobados", len(aprobados_df))
+        d2.metric("Inversión Comprometida", cop(sum(p["CAPEX (COP)"] for p in aprobados_df)))
+        d3.metric("Presupuesto Disponible Restante", cop(st.session_state.presupuesto - sum(p["CAPEX (COP)"] for p in aprobados_df)))
+        d4.metric("Ejecución Presupuestal", f"{(sum(p['CAPEX (COP)'] for p in aprobados_df)/st.session_state.presupuesto)*100:.1f}%" if st.session_state.presupuesto > 0 else "0%")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Lista limpia con los nombres de los proyectos aprobados
+        if aprobados_df:
+            st.markdown("#### 📋 Proyectos Aprobados en el Portafolio Actual")
+            nombres_aprob = ", ".join([f"**{p['Proyecto']}** ({p['Zona']})" for p in aprobados_df])
+            st.success(f"Proyectos vigentes en planta: {nombres_aprob}")
+        else:
+            st.info("No hay proyectos aprobados actualmente. Ajuste su presupuesto o registre proyectos en las pestañas anteriores.")
+            
+        st.markdown("---")
+        st.markdown("#### 🏭 Simulación 3D Interactiva (Zonas Activas en Verde)")
+        construir_html_visor(proyectos, altura=550)
+
+iniciar_estado()
+if st.session_state.autenticado:
+    app_principal()
+else:
+    pantalla_login()
