@@ -10,7 +10,7 @@ st.set_page_config(
     page_title="Coca-Cola FEMSA DSS CAPEX Barranquilla",
     page_icon="🏭",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # ZONAS DE LA PLANTA Y COORDENADAS 3D
@@ -87,7 +87,7 @@ PLANTILLA_VISOR = """<!DOCTYPE html>
   <div id="cargando">Cargando modelo 3D de la planta…</div>
   <div id="hotspots-container">__HOTSPOTS__</div>
   <div class="leyenda">
-    <div><span></span>Zona con Proyecto Aprobado (Activa)</div>
+    <div><span></span>Zona con Proyecto Aprobado</div>
   </div>
 </div>
 <script type="module">
@@ -218,7 +218,7 @@ def zonas_aprobadas_desde(proyectos):
             aprobadas.setdefault(p["Zona"], []).append(p["Proyecto"])
     return aprobadas
 
-def construir_html_visor(proyectos, altura=550):
+def construir_html_visor(proyectos, altura=520):
     aprobadas = zonas_aprobadas_desde(proyectos)
     glb_path = "static/PLANTA_COCA_COLA_BARRANQUILLA.glb"
     glb_data_url = ""
@@ -228,7 +228,6 @@ def construir_html_visor(proyectos, altura=550):
         glb_data_url = f"data:model/gltf-binary;base64,{glb_b64}"
 
     puntos = []
-    # Solo generamos puntos verdes en las zonas aprobadas (sin puntos rojos)
     for nombre, lista in aprobadas.items():
         if nombre in ZONAS:
             x, y, z = ZONAS[nombre]
@@ -299,249 +298,4 @@ st.markdown(
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); margin-bottom: 1.5rem;
     }
     .topbar-brand { font-size: 1.35rem; font-weight: 800; color: var(--cc-red); letter-spacing: -0.8px; }
-    .topbar-brand span { margin-left: 0.4rem; padding: 2px 7px; background: var(--cc-red); color: #FFFFFF; font-size: 0.62rem; letter-spacing: 1px; border-radius: 3px; }
-    .topbar-title { margin: 0; font-size: 1rem; font-weight: 700; color: var(--cc-ink); }
-    .topbar-sub { margin: 2px 0 0 0; font-size: 0.78rem; color: var(--cc-slate); }
-    .sec-title { margin: 0.4rem 0 0.2rem 0; font-size: 1.15rem; font-weight: 700; color: var(--cc-ink); }
-    .sec-text { margin: 0 0 1rem 0; font-size: 0.88rem; color: var(--cc-slate); line-height: 1.55; }
-    div[data-testid="stMetric"] {
-      background: #FFFFFF; border: 1px solid var(--cc-line); border-left: 4px solid var(--cc-red);
-      border-radius: 10px; padding: 0.9rem 1.2rem;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-def cop(valor: float) -> str:
-    return "$" + f"{valor:,.0f}".replace(",", ".")
-
-def iniciar_estado():
-    st.session_state.setdefault("autenticado", False)
-    st.session_state.setdefault("usuario", "")
-    st.session_state.setdefault("intentos", 0)
-    st.session_state.setdefault("proyectos", [])
-    st.session_state.setdefault("presupuesto", 1_500_000_000)
-
-MAX_INTENTOS = 5
-
-def pantalla_login():
-    izquierda, derecha = st.columns([1.15, 1], gap="large")
-    with izquierda:
-        st.markdown(
-            """
-            <div class="login-panel">
-              <div class="login-brand">Coca-Cola<span>FEMSA</span></div>
-              <div>
-                <p class="login-headline">Decisiones de inversión con criterio técnico y financiero.</p>
-                <p class="login-sub">Sistema de soporte a la decisión para priorizar proyectos CAPEX (Planta Barranquilla).</p>
-              </div>
-              <p style="font-size:0.8rem; opacity:0.85; margin:0;">Acceso autorizado (admin / 1234)</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with derecha:
-        st.markdown('<div style="height: 3.2rem;"></div>', unsafe_allow_html=True)
-        st.markdown('<p class="sec-title" style="font-size:1.6rem;">Iniciar sesión</p>', unsafe_allow_html=True)
-        with st.form("form_login", border=False):
-            usuario = st.text_input("Usuario", value="admin")
-            clave = st.text_input("Contraseña", type="password", value="1234")
-            entrar = st.form_submit_button("Ingresar", use_container_width=True)
-            
-        if entrar:
-            if usuario.strip().lower() == "admin" and str(clave) == "1234":
-                st.session_state.autenticado = True
-                st.session_state.usuario = usuario.strip()
-                st.rerun()
-            else:
-                st.error("Credenciales incorrectas.")
-
-def barra_superior():
-    st.markdown(
-        f"""
-        <div class="topbar">
-          <div class="topbar-brand">Coca-Cola<span>FEMSA</span></div>
-          <div>
-            <p class="topbar-title">DSS CAPEX, Planta Barranquilla</p>
-            <p class="topbar-sub">Soporte Multicriterio y Simulación 3D</p>
-          </div>
-          <div style="text-align:right;">
-            <p style="margin:0; font-size:0.82rem; font-weight:600;">{st.session_state.usuario}</p>
-            <p style="margin:0; color:var(--cc-ok); font-size:0.74rem;">Sesión activa</p>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-# APLICACIÓN PRINCIPAL CON NAVEGACIÓN INDEPENDIENTE DE PÁGINAS
-def app_principal():
-    barra_superior()
-    
-    # Barra lateral de selección de Modelos (3 Modelos disponibles) y Páginas
-    st.sidebar.markdown("### ⚙️ Configuración del Modelo")
-    modelo_seleccionado = st.sidebar.selectbox(
-        "Seleccione el Modelo de Decisión",
-        [
-            "Modelo 1: Optimización Entera (Alternativa 1)",
-            "Modelo 2: Ponderación AHP / TOPSIS (Alternativa 1)",
-            "Modelo 3: Alternativa 2 (Modelo Adicional)"
-        ],
-        help="Elija el modelo analítico que procesará la selección del portafolio."
-    )
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🧭 Navegación")
-    pagina = st.sidebar.radio(
-        "Seleccione la vista",
-        ["Gestión y Portafolio CAPEX", "Dashboard 3D y Métricas Avanzadas"]
-    )
-    
-    if st.sidebar.button("Cerrar sesión", use_container_width=True):
-        for k in ("autenticado", "usuario", "proyectos"):
-            st.session_state.pop(k, None)
-        st.rerun()
-
-    # PÁGINA 1: GESTIÓN Y PORTAFOLIO CAPEX
-    if pagina == "Gestión y Portafolio CAPEX":
-        tab_pres, tab_reg, tab_port = st.tabs(["Presupuesto y Criterios", "Registrar Proyecto", "Portafolio y Optimización"])
-        
-        with tab_pres:
-            st.markdown('<p class="sec-title">Presupuesto CAPEX disponible</p>', unsafe_allow_html=True)
-            col_in, col_kpi = st.columns(2, gap="large")
-            with col_in:
-                st.number_input("Presupuesto CAPEX disponible (COP)", min_value=0, step=10_000, format="%d", key="presupuesto")
-            with col_kpi:
-                presupuesto = st.session_state.presupuesto
-                st.metric("Límite de inversión configurado", f"{cop(presupuesto)} COP" if presupuesto > 0 else "Sin definir")
-            
-            st.markdown(f"**Modelo Activo:** `{modelo_seleccionado}`")
-            st.markdown('<p class="sec-title" style="margin-top:1.8rem;">Ponderación de Criterios (AHP)</p>', unsafe_allow_html=True)
-            tabla = pd.DataFrame(CRITERIOS).rename(columns={"id": "Código", "nombre": "Criterio", "tipo": "Tipo", "peso": "Peso (%)"})
-            st.dataframe(tabla, hide_index=True, use_container_width=True, column_config={"Peso (%)": st.column_config.NumberColumn(format="%.2f%%")})
-
-        with tab_reg:
-            st.markdown('<p class="sec-title">Registrar un proyecto nuevo</p>', unsafe_allow_html=True)
-            with st.form("form_proyecto", clear_on_submit=True):
-                col_nombre, col_costo, col_zona = st.columns([2, 1, 1.2], gap="large")
-                nombre = col_nombre.text_input("Nombre del proyecto")
-                costo = col_costo.number_input("Costo CAPEX estimado (COP)", min_value=0, value=0, step=10_000, format="%d")
-                zona = col_zona.selectbox("Zona de la planta", list(ZONAS.keys()), index=None, placeholder="Seleccione una zona")
-                
-                puntajes = {}
-                col_a, col_b = st.columns(2, gap="large")
-                for i, c in enumerate(CRITERIOS):
-                    destino = col_a if i % 2 == 0 else col_b
-                    with destino:
-                        puntajes[c["id"]] = st.slider(f'{c["id"]}: {c["nombre"]}', min_value=ESCALA_MIN, max_value=ESCALA_MAX, value=ESCALA_DEFECTO)
-                enviado = st.form_submit_button("Agregar proyecto")
-                
-            if enviado:
-                nombre_limpio = nombre.strip()
-                if not nombre_limpio:
-                    st.error("Escriba el nombre del proyecto.")
-                elif costo <= 0:
-                    st.error("Ingrese un costo CAPEX mayor a cero.")
-                elif zona is None:
-                    st.error("Seleccione la zona de la planta.")
-                else:
-                    st.session_state.proyectos.append({
-                        "Proyecto": nombre_limpio, "Zona": zona, "CAPEX (COP)": int(costo), "Aprobado": False, **puntajes
-                    })
-                    st.success(f"Proyecto {nombre_limpio} agregado con éxito.")
-
-        with tab_port:
-            st.markdown('<p class="sec-title">Portafolio registrado y Optimización Multicriterio</p>', unsafe_allow_html=True)
-            proyectos = st.session_state.proyectos
-            if not proyectos:
-                st.info("Aún no hay proyectos registrados. Añada proyectos en la pestaña anterior.")
-                return
-                
-            df = pd.DataFrame(proyectos)
-            scores = []
-            for _, row in df.iterrows():
-                score_total = 0
-                for c in CRITERIOS:
-                    val = row[c["id"]]
-                    peso_frac = c["peso"] / 100.0
-                    if c["tipo"] == "Beneficio":
-                        val_norm = (val - ESCALA_MIN) / (ESCALA_MAX - ESCALA_MIN) if ESCALA_MAX > ESCALA_MIN else 0
-                        score_total += val_norm * peso_frac
-                    else:
-                        val_inv = (ESCALA_MAX - val) / (ESCALA_MAX - ESCALA_MIN) if ESCALA_MAX > ESCALA_MIN else 0
-                        score_total += val_inv * peso_frac
-                scores.append(round(score_total, 3))
-            df["Score Global AHP"] = scores
-            
-            presupuesto = st.session_state.presupuesto
-            df_sorted = df.sort_values(by="Score Global AHP", ascending=False).copy()
-            acumulado = 0
-            seleccionados = []
-            for _, row in df_sorted.iterrows():
-                if acumulado + row["CAPEX (COP)"] <= presupuesto:
-                    acumulado += row["CAPEX (COP)"]
-                    seleccionados.append(True)
-                else:
-                    seleccionados.append(False)
-                    
-            df_sorted["Seleccionado"] = seleccionados
-            df_opt = df_sorted[df_sorted["Seleccionado"] == True]
-            
-            nombres_aprobados = set(df_opt["Proyecto"].tolist())
-            for p in st.session_state.proyectos:
-                p["Aprobado"] = p["Proyecto"] in nombres_aprobados
-                
-            m1, m2, m3 = st.columns(3, gap="large")
-            m1.metric("Proyectos Evaluados", len(df))
-            m2.metric("Inversión Óptima Aprobada", cop(df_opt['CAPEX (COP)'].sum()) if not df_opt.empty else "$0")
-            m3.metric("Modelo Aplicado", modelo_seleccionado.split(":")[0])
-            
-            st.markdown("#### Listado General de Proyectos y Scores AHP")
-            st.dataframe(df, hide_index=True, use_container_width=True, column_config={"CAPEX (COP)": st.column_config.NumberColumn(format="$%d")})
-            
-            if not df_opt.empty:
-                st.markdown("---")
-                st.markdown("#### Portafolio Óptimo Recomendado")
-                st.dataframe(df_opt[["Proyecto", "Zona", "CAPEX (COP)", "Score Global AHP"]], hide_index=True, use_container_width=True, column_config={"CAPEX (COP)": st.column_config.NumberColumn(format="$%d")})
-
-    # PÁGINA 2: DASHBOARD 3D Y MÉTRICAS AVANZADAS
-    elif pagina == "Dashboard 3D y Métricas Avanzadas":
-        st.markdown('<p class="sec-title">Dashboard Analítico y Simulación 3D de la Planta</p>', unsafe_allow_html=True)
-        st.markdown(f'<p class="sec-text">Visualización en tiempo real del modelo 3D corporativo y métricas de impacto para el modelo activo: <b>{modelo_seleccionado}</b>.</p>', unsafe_allow_html=True)
-        
-        proyectos = st.session_state.proyectos
-        aprobados_df = [p for p in proyectos if p.get("Aprobado")]
-        
-        # Tarjetas de Métricas del Dashboard
-        m_col1, m_col2, m_col3, m_col4 = st.columns(4, gap="medium")
-        m_col1.metric("Zonas Activas con Proyecto", len(aprobados_df))
-        m_col2.metric("Inversión Comprometida", cop(sum(p["CAPEX (COP)"] for p in aprobados_df)))
-        m_col3.metric("Presupuesto Restante", cop(st.session_state.presupuesto - sum(p["CAPEX (COP)"] for p in aprobados_df)))
-        m_col4.metric("Eficiencia de Asignación", f"{(sum(p['CAPEX (COP)'] for p in aprobados_df)/st.session_state.presupuesto)*100:.1f}%" if st.session_state.presupuesto > 0 else "0%")
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # Visor 3D limpio (Solo puntos verdes en zonas aprobadas)
-        st.markdown("#### 🏭 Ubicación Espacial de Proyectos Aprobados en la Planta")
-        construir_html_visor(proyectos, altura=520)
-        
-        # Gráficas y Comparaciones Analíticas
-        if aprobados_df:
-            st.markdown("---")
-            st.markdown("#### 📊 Análisis Comparativo y Distribución de Inversión por Zona")
-            df_aprob = pd.DataFrame(aprobados_df)
-            
-            col_g1, col_g2 = st.columns(2, gap="large")
-            with col_g1:
-                st.markdown("**Costo CAPEX por Zona Aprobada**")
-                st.bar_chart(df_aprob.set_index("Zona")["CAPEX (COP)"])
-            with col_g2:
-                st.markdown("**Score Global AHP por Proyecto**")
-                st.bar_chart(df_aprob.set_index("Proyecto")["Score Global AHP"])
-
-iniciar_estado()
-if st.session_state.autenticado:
-    app_principal()
-else:
-    pantalla_login()
+    .topbar-brand span { margin-left: 0.4rem; padding: 2px 7px
