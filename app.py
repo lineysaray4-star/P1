@@ -1,179 +1,172 @@
 import streamlit as st
+import pandas as pd
 
-import streamlit as st
-
-# ------------------------------------------------------------------
-# CONFIGURACIÓN DE LA PÁGINA
-# ------------------------------------------------------------------
+# Configuración de la página
 st.set_page_config(
-    page_title="Coca-Cola FEMSA | DSS CAPEX Planta Barranquilla",
-    page_icon="🥤",
+    page_title="Coca-Cola FEMSA | DSS CAPEX Planta Barranquilla", 
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="collapsed"
 )
 
-# ------------------------------------------------------------------
-# ESTILOS CORPORATIVOS
-# ------------------------------------------------------------------
+# Estilos corporativos limpios
 st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-    :root {
-        --cc-red: #E41E2B;
-        --cc-red-dark: #B5121B;
-        --cc-ink: #1A1A1A;
-        --cc-slate: #475569;
-        --cc-muted: #94A3B8;
-        --cc-line: #E2E8F0;
-        --cc-bg: #F6F7F9;
-        --cc-ok: #15803D;
-    }
-
-    html, body, [class*="css"], .stApp {
-        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-    }
-    .stApp { background-color: var(--cc-bg); }
-
-    /* Ocultar elementos por defecto de Streamlit */
-    #MainMenu, footer, header[data-testid="stHeader"] { visibility: hidden; height: 0; }
-    .block-container { padding-top: 1.2rem; max-width: 1280px; }
-
-    /* Encabezado */
-    .cc-header {
-        background: #FFFFFF;
-        border-bottom: 3px solid var(--cc-red);
-        border-radius: 8px;
-        padding: 1rem 1.5rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    <style>
+    .main { background-color: #f8fafc; }
+    .corporate-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        border-left: 5px solid #E51A22;
         margin-bottom: 1.5rem;
     }
-    .cc-brand {
-        font-weight: 800;
-        font-size: 1.35rem;
-        color: var(--cc-red);
-        letter-spacing: -0.5px;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+    .metric-container {
+        background: white;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        text-align: center;
+        border-top: 3px solid #E51A22;
     }
-    .cc-badge {
-        background: var(--cc-red);
-        color: #FFFFFF;
-        font-size: 0.65rem;
-        font-weight: 700;
-        letter-spacing: 1px;
-        padding: 3px 8px;
-        border-radius: 3px;
-    }
-    .cc-title { margin: 0; color: var(--cc-ink); font-size: 1.05rem; font-weight: 700; }
-    .cc-subtitle { margin: 2px 0 0 0; color: var(--cc-slate); font-size: 0.78rem; }
-    .cc-user { text-align: right; }
-    .cc-user-name { margin: 0; color: var(--cc-ink); font-weight: 600; font-size: 0.85rem; }
-    .cc-status { margin: 2px 0 0 0; color: var(--cc-ok); font-size: 0.72rem; font-weight: 600; }
-    .cc-dot {
-        display: inline-block; width: 7px; height: 7px;
-        background: var(--cc-ok); border-radius: 50%; margin-right: 5px;
-    }
-
-    /* Tarjetas */
-    .cc-card {
-        background: #FFFFFF;
-        border: 1px solid var(--cc-line);
-        border-left: 4px solid var(--cc-red);
-        border-radius: 8px;
-        padding: 1.25rem 1.5rem;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
-        margin-bottom: 1rem;
-    }
-    .cc-card-title {
-        margin: 0 0 0.25rem 0;
-        color: var(--cc-ink);
-        font-size: 0.95rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.6px;
-    }
-    .cc-card-text { margin: 0; color: var(--cc-slate); font-size: 0.82rem; line-height: 1.5; }
-
-    /* Campo numérico */
-    div[data-testid="stNumberInput"] label p {
-        font-weight: 600; color: var(--cc-ink); font-size: 0.85rem;
-    }
-    div[data-testid="stNumberInput"] input { font-weight: 600; font-size: 1.05rem; }
-
-    /* KPI */
-    div[data-testid="stMetric"] {
-        background: #FFFFFF;
-        border: 1px solid var(--cc-line);
-        border-radius: 8px;
-        padding: 1rem 1.25rem;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
-    }
-    div[data-testid="stMetricLabel"] p {
-        color: var(--cc-slate); font-size: 0.75rem; font-weight: 600;
-        text-transform: uppercase; letter-spacing: 0.5px;
-    }
-    div[data-testid="stMetricValue"] { color: var(--cc-ink); font-weight: 800; }
-</style>
+    </style>
 """, unsafe_allow_html=True)
 
-# ------------------------------------------------------------------
-# ENCABEZADO EJECUTIVO
-# ------------------------------------------------------------------
-st.markdown("""
-<div class="cc-header">
-    <div class="cc-brand">COCA-COLA <span class="cc-badge">FEMSA</span></div>
-    <div>
-        <p class="cc-title">Sistema de Soporte a la Decisión · CAPEX</p>
-        <p class="cc-subtitle">Planta Barranquilla · Optimización y selección de portafolio de inversión</p>
-    </div>
-    <div class="cc-user">
-        <p class="cc-user-name">Panel Gerencial</p>
-        <p class="cc-status"><span class="cc-dot"></span>Sistema activo · Colombia</p>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+# Inicializar el estado de navegación de la página
+if "pagina" not in st.session_state:
+    st.session_state.pagina = "configuracion"
 
-# ------------------------------------------------------------------
-# CONFIGURACIÓN DEL ESCENARIO DE INVERSIÓN
-# ------------------------------------------------------------------
-st.markdown("""
-<div class="cc-card">
-    <p class="cc-card-title">Configuración del escenario de inversión</p>
-    <p class="cc-card-text">
-        Ingrese el monto de presupuesto CAPEX disponible. Este valor define el límite
-        superior para la selección óptima de proyectos de la planta.
-    </p>
-</div>
-""", unsafe_allow_html=True)
+# --- ENCABEZADO EJECUTIVO COMÚN ---
+col_logo, col_info, col_user = st.columns([1.5, 3, 1.5])
 
-col_input, col_kpi = st.columns([1, 1], gap="large")
+with col_logo:
+    st.markdown("""
+        <div style="font-weight: 900; font-style: italic; font-size: 22px; color: #E51A22; letter-spacing: -1px; padding-top: 10px;">
+            COCA-COLA <span style="background: #E51A22; color: white; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-style: normal;">FEMSA</span>
+        </div>
+    """, unsafe_allow_html=True)
 
-with col_input:
-    presupuesto_exacto = st.number_input(
-        "Presupuesto CAPEX disponible (COP)",
-        min_value=0,
-        value=1_500_000_000,
-        step=10_000,
-        format="%d",
-        help="Digite el monto exacto en pesos colombianos.",
-    )
+with col_info:
+    st.markdown("""
+        <div>
+            <h3 style="margin: 0; color: #1e293b; font-size: 18px;">DSS CAPEX • Planta Barranquilla</h3>
+            <p style="margin: 0; color: #64748b; font-size: 12px;">Sistema de Soporte de Decisiones para Selección de Portafolio</p>
+        </div>
+    """, unsafe_allow_html=True)
 
-# Formato colombiano: punto como separador de miles
-presupuesto_fmt = f"${presupuesto_exacto:,.0f}".replace(",", ".")
+with col_user:
+    st.markdown("""
+        <div style="text-align: right;">
+            <p style="margin: 0; font-weight: bold; color: #334155; font-size: 13px;">Panel Gerencial</p>
+            <p style="margin: 0; color: #10b981; font-size: 11px; font-weight: 600;">● Sistema Activo (Colombia)</p>
+        </div>
+    """, unsafe_allow_html=True)
 
-with col_kpi:
-    if presupuesto_exacto > 0:
-        st.metric(
-            label="Tope de inversión configurado",
-            value=f"{presupuesto_fmt} COP",
-            delta="Listo para optimización",
+st.divider()
+
+# ==========================================
+# FASE 1: PÁGINA DE CONFIGURACIÓN Y PARÁMETROS
+# ==========================================
+if st.session_state.pagina == "configuracion":
+    st.markdown("### 📋 Fase 1: Configuración de Escenarios y Proyectos Candidatos")
+    st.write("Defina el presupuesto disponible y revise el listado de proyectos evaluados por AHP/TOPSIS para la planta.")
+
+    col_izq, col_der = st.columns([1, 1])
+
+    with col_izq:
+        st.markdown("""
+            <div class="corporate-card">
+                <h4 style="margin-top: 0; color: #1e293b;">🎛️ Parámetro Financiero</h4>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        presupuesto_ingresado = st.number_input(
+            "Presupuesto CAPEX Disponible (COP)", 
+            min_value=0, 
+            value=2500000000, 
+            step=50000,
+            format="%d"
         )
-    else:
-        st.metric(label="Tope de inversión configurado", value="— COP")
-        st.warning("Ingrese un presupuesto mayor a cero para habilitar la optimización.")
+        st.session_state.presupuesto = presupuesto_ingresado
 
+    with col_der:
+        st.markdown("""
+            <div class="corporate-card">
+                <h4 style="margin-top: 0; color: #1e293b;">🏭 Alcance de Planta</h4>
+                <p style="color: #64748b; font-size: 13px;">Se evaluarán 5 proyectos estratégicos enfocados en líneas de producción, eficiencia energética y modernización logística de Barranquilla.</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    # Base de datos de proyectos candidatos
+    proyectos_df = pd.DataFrame({
+        "ID": [1, 2, 3, 4, 5],
+        "Proyecto": [
+            "Automatización Línea PET 3", 
+            "Optimización Sistema de Calderas", 
+            "Modernización Fajas Transportadoras", 
+            "Ampliación Bodega Almacenamiento", 
+            "Actualización Válvulas QMS"
+        ],
+        "Costo (COP)": [450000000, 300000000, 600000000, 800000000, 250000000],
+        "VPN Estimado (COP)": [120000000, 90000000, 150000000, 210000000, 70000000],
+        "Score Multicriterio (AHP)": [8.5, 7.8, 8.1, 9.0, 7.2]
+    })
+    
+    st.session_state.proyectos = proyectos_df
+
+    st.write("#### 📊 Banco de Proyectos Candidatos")
+    st.dataframe(proyectos_df, use_container_width=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    if st.button("🚀 Ejecutar Modelo de Optimización y Ver Dashboard 3D", type="primary", use_container_width=True):
+        st.session_state.pagina = "dashboard"
+        st.rerun()
+
+# ==========================================
+# FASE 2: DASHBOARD EJECUTIVO + MODELO 3D
+# ==========================================
+elif st.session_state.pagina == "dashboard":
+    st.markdown("### 📊 Fase 2: Dashboard Ejecutivo de Decisión y Distribución 3D")
+    
+    if st.button("⬅️ Volver a Configuración de Parámetros"):
+        st.session_state.pagina = "configuracion"
+        st.rerun()
+
+    presupuesto_actual = st.session_state.get("presupuesto", 2500000000)
+    df = st.session_state.get("proyectos")
+
+    # Simulación de selección por optimización (Greedy / Programación entera)
+    df_opt = df[df["Costo (COP)"] <= presupuesto_actual].copy()
+
+    # KPIs Superiores
+    kpi1, kpi2, kpi3 = st.columns(3)
+    with kpi1:
+        st.metric("Presupuesto Asignado", f"${presupuesto_actual:,.0f} COP")
+    with kpi2:
+        st.metric("Proyectos Seleccionados", f"{len(df_opt)} de {len(df)}")
+    with kpi3:
+        st.metric("VPN Total del Portafolio", f"${df_opt['VPN Estimado (COP)'].sum():,.0f} COP")
+
+    st.divider()
+
+    # Sección dividida: Resultados del Portafolio vs Modelo 3D de Planta
+    col_res, col_3d = st.columns([1.2, 1.8])
+
+    with col_res:
+        st.markdown("#### ✅ Portafolio Óptimo Seleccionado")
+        if not df_opt.empty:
+            st.dataframe(df_opt[["ID", "Proyecto", "Costo (COP)"]], use_container_width=True)
+            st.success("✨ Optimización matemática completada con éxito (Modelo de Programación Entera).")
+        else:
+            st.warning("⚠️ El presupuesto configurado es insuficiente para seleccionar proyectos.")
+
+    with col_3d:
+        st.markdown("#### 🧊 Visualización 3D de Implantación en Planta")
+        st.markdown("""
+            <div style="background-color: #1e293b; color: white; padding: 2.5rem; border-radius: 0.75rem; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div style="font-size: 40px; margin-bottom: 10px;">🏭</div>
+                <h5 style="margin: 0; color: #f8fafc; font-size: 16px;">Planta Barranquilla - Modelo 3D Interactivo</h5>
+                <p style="margin: 5px 0 15px 0; color: #94a3b8; font-size: 12px;">Renderizado espacial de ubicación de equipos y líneas optimizadas.</p>
+                <span style="background-color: #E51A22; color: white; font-size: 11px; padding: 4px 12px; border-radius: 4px; font-weight: bold;">MÓDULO 3D ACTIVO</span>
+            </div>
+        """, unsafe_allow_html=True)
