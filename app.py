@@ -54,26 +54,22 @@ ESCALA_MIN, ESCALA_MAX, ESCALA_DEFECTO = 1, 10, 5
 
 # FUNCIONES DE CÁLCULO TOPSIS / AHP
 def calcular_topsis(df_proyectos, criterios):
-    """
-    Ejecuta el algoritmo TOPSIS (Technique for Order of Preference by Similarity to Ideal Solution)
-    y retorna el DataFrame con los cálculos intermedios y el score final.
-    """
     df = df_proyectos.copy()
     if df.empty:
         return df
 
     matriz_decision = df[[c["id"] for c in criterios]].values
     
-    # 1. Normalización Vectorial (Vector Normalization)
+    # 1. Normalización Vectorial
     suma_cuadrados = np.sqrt(np.sum(matriz_decision**2, axis=0))
-    suma_cuadrados[suma_cuadrados == 0] = 1 # Evitar división por cero
+    suma_cuadrados[suma_cuadrados == 0] = 1 
     matriz_normalizada = matriz_decision / suma_cuadrados
 
-    # 2. Ponderación de la Matriz Normalizada (AHP Weights)
+    # 2. Ponderación
     pesos = np.array([c["peso"] / 100 for c in criterios])
     matriz_ponderada = matriz_normalizada * pesos
 
-    # 3. Determinar Solución Ideal Positiva (A+) y Negativa (A-)
+    # 3. Solución Ideal Positiva (A+) y Negativa (A-)
     a_plus = np.zeros(len(criterios))
     a_minus = np.zeros(len(criterios))
 
@@ -81,31 +77,30 @@ def calcular_topsis(df_proyectos, criterios):
         if crit["tipo"] == "Beneficio":
             a_plus[j] = np.max(matriz_ponderada[:, j])
             a_minus[j] = np.min(matriz_ponderada[:, j])
-        else: # Costo
+        else: 
             a_plus[j] = np.min(matriz_ponderada[:, j])
             a_minus[j] = np.max(matriz_ponderada[:, j])
 
-    # 4. Calcular Distancias Euclidianas a A+ y A-
+    # 4. Distancias Euclidianas
     d_plus = np.sqrt(np.sum((matriz_ponderada - a_plus)**2, axis=1))
     d_minus = np.sqrt(np.sum((matriz_ponderada - a_minus)**2, axis=1))
 
-    # 5. Calcular Coeficiente de Cercanía Relativa (Score TOPSIS)
+    # 5. Coeficiente de Cercanía
     cc_score = np.where((d_plus + d_minus) == 0, 0, d_minus / (d_plus + d_minus))
 
-    # Guardar resultados en el DataFrame
     df["Distancia A+ ($d_i^+$)"] = np.round(d_plus, 4)
     df["Distancia A- ($d_i^-$)"] = np.round(d_minus, 4)
     df["Score TOPSIS ($CC_i$)"] = np.round(cc_score, 4)
     
     return df
 
-# VISOR 3D (OPTIMIZADO PARA CARGA DIRECTA)
+# VISOR 3D (OPTIMIZADO SIN CÁLCULOS PESADOS DE BORDES PARA CARGA INSTANTÁNEA)
 PLANTILLA_VISOR = """<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <style>
   body { margin: 0; background: #f5f5f5; overflow: hidden; font-family: sans-serif; }
   #visor { width: 100vw; height: 100vh; position: absolute; top:0; left:0; }
-  .Hotspot { position: absolute; width: 20px; height: 20px; border-radius: 50%; border: 3px solid #fff;
+  .Hotspot { position: absolute; width: 22px; height: 22px; border-radius: 50%; border: 3px solid #fff;
     box-shadow: 0 0 15px rgba(27,127,59,1); transform: translate(-50%, -50%);
     background: #1B7F3B; animation: pulse 1.5s infinite; cursor: pointer; z-index: 10;}
   @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(27, 127, 59, 0.8); } 70% { box-shadow: 0 0 0 15px rgba(27, 127, 59, 0); } 100% { box-shadow: 0 0 0 0 rgba(27, 127, 59, 0); } }
@@ -121,39 +116,26 @@ PLANTILLA_VISOR = """<!DOCTYPE html>
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
-import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
-import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 5000);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.getElementById('visor').appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
 scene.add(light);
 const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
 dirLight.position.set(10, 20, 10);
 scene.add(dirLight);
 
-const matLinea = new LineMaterial({ color: 0x2b4a63, linewidth: 1.5, worldUnits: false });
-matLinea.resolution.set(window.innerWidth, window.innerHeight);
-
-// Carga del modelo en Base64 para evitar errores de ruta
 const loader = new GLTFLoader();
 loader.load("__GLB_B64__", function (gltf) {
     const model = gltf.scene;
-    model.traverse((o) => {
-        if (o.isMesh) {
-            const edges = new THREE.EdgesGeometry(o.geometry, 35);
-            const line = new LineSegments2(new LineSegmentsGeometry().fromEdgesGeometry(edges), matLinea);
-            o.add(line);
-        }
-    });
     scene.add(model);
     
     const box = new THREE.Box3().setFromObject(model);
@@ -162,7 +144,7 @@ loader.load("__GLB_B64__", function (gltf) {
     const maxDim = Math.max(size.x, size.y, size.z);
     
     controls.target.copy(center);
-    camera.position.set(center.x + maxDim, center.y + maxDim, center.z + maxDim);
+    camera.position.set(center.x + maxDim * 1.2, center.y + maxDim, center.z + maxDim * 1.2);
     controls.update();
 });
 
@@ -175,7 +157,6 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    matLinea.resolution.set(window.innerWidth, window.innerHeight);
 });
 
 function animate() {
@@ -206,7 +187,7 @@ def construir_html_visor(proyectos, altura=600):
         with open(glb_path, "rb") as f:
             glb_data_url = f"data:model/gltf-binary;base64,{base64.b64encode(f.read()).decode('utf-8')}"
     else:
-        st.warning("⚠️ Archivo 3D no encontrado. Verifica que 'static/PLANTA_COCA_COLA_BARRANQUILLA.glb' exista en el repositorio.")
+        st.warning("⚠️ Archivo 3D no encontrado en static/PLANTA_COCA_COLA_BARRANQUILLA.glb")
 
     puntos_html = ""
     for zona, lista in aprobadas.items():
@@ -264,7 +245,8 @@ def app_principal():
             ca, cb = st.columns(2)
             for i, c in enumerate(CRITERIOS):
                 col = ca if i % 2 == 0 else cb
-                puntos[c["id"]] = col.slider(f"{c['id']} ({c['tipo']}) - {c['peso']}%", 1, 10, 5)
+                # AQUÍ REGRESAN LOS NOMBRES COMPLETOS A LOS SLIDERS
+                puntos[c["id"]] = col.slider(f"{c['id']}: {c['nombre']} ({c['tipo']})", 1, 10, 5)
             
             if st.form_submit_button("Registrar Proyecto") and nom and cost > 0:
                 st.session_state.proyectos.append({"Proyecto": nom, "Zona": zon, "CAPEX (COP)": cost, "Aprobado": False, **puntos})
@@ -281,7 +263,6 @@ def app_principal():
         df_raw = pd.DataFrame(st.session_state.proyectos)
         df_calc = calcular_topsis(df_raw, CRITERIOS)
         
-        # Selección por restricción presupuestaria basada en Score TOPSIS
         df_sorted = df_calc.sort_values(by="Score TOPSIS ($CC_i$)", ascending=False).copy()
         acum, sel = 0, []
         for _, row in df_sorted.iterrows():
@@ -293,7 +274,6 @@ def app_principal():
         df_sorted["Seleccionado"] = sel
         df_opt = df_sorted[df_sorted["Seleccionado"]].copy()
 
-        # Actualizar estado de aprobación para el Dashboard 3D
         aprobados_set = set(df_opt["Proyecto"])
         for p in st.session_state.proyectos:
             p["Aprobado"] = p["Proyecto"] in aprobados_set
@@ -307,45 +287,81 @@ def app_principal():
         st.dataframe(df_sorted.drop(columns=["Seleccionado"]), use_container_width=True)
 
         st.markdown("---")
-        st.markdown("##### 📈 Análisis Analítico: Distancia a Solución Ideal ($A^+$) y Anti-Ideal ($A^-$)")
+        st.markdown("##### 📈 Gráficas Analíticas del Portafolio")
         
-        # Gráfica avanzada de líneas y marcadores para A+ y A-
-        fig_dist = go.Figure()
-        fig_dist.add_trace(go.Scatter(
-            x=df_sorted["Proyecto"], y=df_sorted["Distancia A+ ($d_i^+$)"],
-            mode='lines+markers', name='Distancia al Ideal ($d_i^+$) - Menor es mejor',
-            line=dict(color='#1B7F3B', width=3, dash='dash'), marker=dict(size=10, symbol='circle')
-        ))
-        fig_dist.add_trace(go.Scatter(
-            x=df_sorted["Proyecto"], y=df_sorted["Distancia A- ($d_i^-$)"],
-            mode='lines+markers', name='Distancia al Anti-Ideal ($d_i^-$) - Mayor es mejor',
-            line=dict(color='#F40009', width=3), marker=dict(size=10, symbol='square')
-        ))
-        fig_dist.update_layout(
-            title="Comparativa de Distancias Euclidianas por Proyecto (Algoritmo TOPSIS)",
-            xaxis_title="Proyectos Evaluados", yaxis_title="Distancia Euclidiana Normalizada",
-            plot_bgcolor="rgba(0,0,0,0)", hovermode="x unified",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
-        fig_dist.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightGrey')
-        fig_dist.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGrey')
+        col_g1, col_g2 = st.columns(2, gap="large")
         
-        st.plotly_chart(fig_dist, use_container_width=True)
+        with col_g1:
+            # AQUÍ REGRESA LA GRÁFICA DE COSTO CAPEX MEJORADA
+            fig_capex = px.bar(df_opt, x="Proyecto", y="CAPEX (COP)", text_auto='.2s', 
+                               title="Inversión CAPEX por Proyecto Aprobado",
+                               color="CAPEX (COP)", color_continuous_scale=["#f8d7da", "#880007"])
+            fig_capex.update_layout(plot_bgcolor="rgba(0,0,0,0)", showlegend=False)
+            st.plotly_chart(fig_capex, use_container_width=True)
+
+        with col_g2:
+            # AQUÍ ESTÁ LA NUEVA GRÁFICA DEL PUNTO IDEAL (Dispersión con líneas conectadas)
+            fig_topsis = go.Figure()
+            
+            max_d_minus = df_sorted["Distancia A- ($d_i^-$)"].max() * 1.15 # Margen superior
+            
+            # 1. Trazar el Punto Ideal (Estrella Dorada)
+            fig_topsis.add_trace(go.Scatter(
+                x=[0], y=[max_d_minus],
+                mode="markers+text",
+                marker=dict(color="#FFD700", size=20, symbol="star", line=dict(color="black", width=1)),
+                text=["<b>Punto Ideal (A+)</b>"],
+                textposition="top center",
+                name="Solución Ideal"
+            ))
+
+            # 2. Trazar los proyectos evaluados
+            fig_topsis.add_trace(go.Scatter(
+                x=df_sorted["Distancia A+ ($d_i^+$)"],
+                y=df_sorted["Distancia A- ($d_i^-$)"],
+                mode="markers+text",
+                marker=dict(color="#1B7F3B", size=12),
+                text=df_sorted["Proyecto"],
+                textposition="bottom center",
+                name="Proyectos Evaluados"
+            ))
+
+            # 3. Trazar las líneas desde cada proyecto hasta el Punto Ideal (Distancia)
+            for i, row in df_sorted.iterrows():
+                fig_topsis.add_trace(go.Scatter(
+                    x=[0, row["Distancia A+ ($d_i^+$)"]],
+                    y=[max_d_minus, row["Distancia A- ($d_i^-$)"]],
+                    mode="lines",
+                    line=dict(color="#F40009", dash="dot", width=1.5),
+                    showlegend=False
+                ))
+
+            fig_topsis.update_layout(
+                title="Distancia Euclidiana hacia el Punto Ideal (TOPSIS)",
+                xaxis_title="Distancia al Ideal (d⁺) ➔ ¡Cercano a 0 es mejor!",
+                yaxis_title="Distancia al Anti-Ideal (d⁻) ➔ ¡Mayor es mejor!",
+                plot_bgcolor="rgba(0,0,0,0)",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            fig_topsis.update_xaxes(showgrid=True, gridcolor='LightGrey', range=[-0.05, df_sorted["Distancia A+ ($d_i^+$)"].max() * 1.2])
+            fig_topsis.update_yaxes(showgrid=True, gridcolor='LightGrey')
+            
+            st.plotly_chart(fig_topsis, use_container_width=True)
 
     with t4:
-        st.markdown('<p class="sec-title">Gemelo Digital 3D - Monitoreo de Asignación CAPEX</p>', unsafe_allow_html=True)
+        st.markdown('<p class="sec-title">Dashboard Ejecutivo - Gemelo Digital 3D de Planta</p>', unsafe_allow_html=True)
         col_3d, col_panel = st.columns([3.5, 1.2], gap="medium")
         
         with col_3d:
             construir_html_visor(st.session_state.proyectos, altura=650)
             
         with col_panel:
-            st.markdown("##### 📌 Resumen de Inversión")
+            st.markdown("##### 📌 Portafolio Vigente")
             aprobados = [p for p in st.session_state.proyectos if p["Aprobado"]]
             if aprobados:
                 for p in aprobados:
                     st.markdown(
-                        f"""<div style="background:#fff; border-left:4px solid #1B7F3B; padding:10px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                        f"""<div style="background:#fff; border-left:4px solid #1B7F3B; padding:10px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.1); border-radius: 4px;">
                         <strong>{p['Proyecto']}</strong><br><small style="color:#555;">{p['Zona']}</small><br><span style="color:#1B7F3B; font-weight:bold;">{cop(p['CAPEX (COP)'])}</span>
                         </div>""", unsafe_allow_html=True
                     )
