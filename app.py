@@ -1,6 +1,3 @@
-streamlit
-pandas
-
 import streamlit as st
 import pandas as pd
 import html as html_lib
