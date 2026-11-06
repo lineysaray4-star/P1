@@ -8,7 +8,7 @@ import streamlit.components.v1 as components
 import base64
 import os
 
-# CONFIGURACIÓN DE LA PÁGINA
+# 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(
     page_title="Coca-Cola FEMSA DSS CAPEX Barranquilla",
     page_icon="🏭",
@@ -16,28 +16,18 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ZONAS DE LA PLANTA Y COORDENADAS 3D
+# 2. ZONAS DE LA PLANTA Y COORDENADAS 3D
 ZONAS = {
-    "Nave L6": (0.3109, 0.0869, -0.0969),
-    "Ed. Administrativo": (-0.0787, 0.0909, -0.2365),
-    "Preparación Jarabes": (-0.0134, 0.0549, -0.1497),
-    "Nave L5": (-0.0908, 0.0740, 0.0775),
-    "PTAP": (0.1250, 0.0105, -0.2363),
-    "Maquinaria Auxiliar": (0.1860, 0.0700, -0.1343),
-    "Almacén Materia Prima": (0.1700, 0.0729, -0.0558),
-    "Taller de Mantenimiento": (0.1995, 0.0338, 0.1309),
-    "Almacén PT en planta": (0.0538, 0.0610, 0.1215),
-    "Almacén central": (0.1879, 0.0398, 0.2870),
-    "Almacén Seco y Refrigerado": (0.0012, 0.0729, 0.0481),
-    "CIP 2": (-0.0146, 0.0409, -0.2411),
-    "Laboratorios": (0.1035, 0.0458, -0.1947),
-    "Bodega de Almacenamiento": (-0.2996, 0.1126, 0.1435),
-    "Almacén PT": (-0.3069, 0.0863, -0.1013),
-    "Planta de Aguas Residuales": (0.0046, 0.0560, 0.3222),
-    "Línea San Martín": (0.0442, 0.0729, -0.0451),
-    "Línea Krones": (0.1245, 0.0729, -0.0544),
-    "Línea Simonazzi": (0.0048, 0.0729, -0.0600),
-    "Línea Caraballo": (0.0800, 0.0729, -0.0742),
+    "Nave L6": (0.3109, 0.0869, -0.0969), "Ed. Administrativo": (-0.0787, 0.0909, -0.2365),
+    "Preparación Jarabes": (-0.0134, 0.0549, -0.1497), "Nave L5": (-0.0908, 0.0740, 0.0775),
+    "PTAP": (0.1250, 0.0105, -0.2363), "Maquinaria Auxiliar": (0.1860, 0.0700, -0.1343),
+    "Almacén Materia Prima": (0.1700, 0.0729, -0.0558), "Taller de Mantenimiento": (0.1995, 0.0338, 0.1309),
+    "Almacén PT en planta": (0.0538, 0.0610, 0.1215), "Almacén central": (0.1879, 0.0398, 0.2870),
+    "Almacén Seco y Refrigerado": (0.0012, 0.0729, 0.0481), "CIP 2": (-0.0146, 0.0409, -0.2411),
+    "Laboratorios": (0.1035, 0.0458, -0.1947), "Bodega de Almacenamiento": (-0.2996, 0.1126, 0.1435),
+    "Almacén PT": (-0.3069, 0.0863, -0.1013), "Planta de Aguas Residuales": (0.0046, 0.0560, 0.3222),
+    "Línea San Martín": (0.0442, 0.0729, -0.0451), "Línea Krones": (0.1245, 0.0729, -0.0544),
+    "Línea Simonazzi": (0.0048, 0.0729, -0.0600), "Línea Caraballo": (0.0800, 0.0729, -0.0742),
 }
 
 CRITERIOS = [
@@ -52,49 +42,56 @@ CRITERIOS = [
 
 ESCALA_MIN, ESCALA_MAX, ESCALA_DEFECTO = 1, 10, 5
 
-# FUNCIONES DE CÁLCULO TOPSIS / AHP
+# 3. LÓGICA MATEMÁTICA DE LOS MODELOS (TOPSIS y Ponderación Simple)
 def calcular_topsis(df_proyectos, criterios):
     df = df_proyectos.copy()
-    if df.empty:
-        return df
-
     matriz_decision = df[[c["id"] for c in criterios]].values
     
-    # 1. Normalización Vectorial
+    # Normalización y Ponderación
     suma_cuadrados = np.sqrt(np.sum(matriz_decision**2, axis=0))
     suma_cuadrados[suma_cuadrados == 0] = 1 
     matriz_normalizada = matriz_decision / suma_cuadrados
-
-    # 2. Ponderación
     pesos = np.array([c["peso"] / 100 for c in criterios])
     matriz_ponderada = matriz_normalizada * pesos
 
-    # 3. Solución Ideal Positiva (A+) y Negativa (A-)
-    a_plus = np.zeros(len(criterios))
-    a_minus = np.zeros(len(criterios))
-
+    # Solución Ideal A+ y A-
+    a_plus, a_minus = np.zeros(len(criterios)), np.zeros(len(criterios))
     for j, crit in enumerate(criterios):
         if crit["tipo"] == "Beneficio":
-            a_plus[j] = np.max(matriz_ponderada[:, j])
-            a_minus[j] = np.min(matriz_ponderada[:, j])
+            a_plus[j], a_minus[j] = np.max(matriz_ponderada[:, j]), np.min(matriz_ponderada[:, j])
         else: 
-            a_plus[j] = np.min(matriz_ponderada[:, j])
-            a_minus[j] = np.max(matriz_ponderada[:, j])
+            a_plus[j], a_minus[j] = np.min(matriz_ponderada[:, j]), np.max(matriz_ponderada[:, j])
 
-    # 4. Distancias Euclidianas
+    # Distancias
     d_plus = np.sqrt(np.sum((matriz_ponderada - a_plus)**2, axis=1))
     d_minus = np.sqrt(np.sum((matriz_ponderada - a_minus)**2, axis=1))
-
-    # 5. Coeficiente de Cercanía
     cc_score = np.where((d_plus + d_minus) == 0, 0, d_minus / (d_plus + d_minus))
 
     df["Distancia A+ ($d_i^+$)"] = np.round(d_plus, 4)
     df["Distancia A- ($d_i^-$)"] = np.round(d_minus, 4)
-    df["Score TOPSIS ($CC_i$)"] = np.round(cc_score, 4)
-    
+    df["Score Analítico"] = np.round(cc_score, 4)
     return df
 
-# VISOR 3D (OPTIMIZADO SIN CÁLCULOS PESADOS DE BORDES PARA CARGA INSTANTÁNEA)
+def calcular_ponderacion_simple(df_proyectos, criterios):
+    df = df_proyectos.copy()
+    scores = []
+    for _, row in df.iterrows():
+        score_total = 0
+        for c in criterios:
+            val = row[c["id"]]
+            peso_frac = c["peso"] / 100.0
+            if c["tipo"] == "Beneficio":
+                score_total += ((val - ESCALA_MIN) / (ESCALA_MAX - ESCALA_MIN)) * peso_frac
+            else:
+                score_total += ((ESCALA_MAX - val) / (ESCALA_MAX - ESCALA_MIN)) * peso_frac
+        scores.append(round(score_total, 4))
+    
+    df["Distancia A+ ($d_i^+$)"] = 0.0 # No aplica en este modelo
+    df["Distancia A- ($d_i^-$)"] = 0.0 # No aplica en este modelo
+    df["Score Analítico"] = scores
+    return df
+
+# 4. VISOR 3D (Súper optimizado para carga rápida, sin líneas de contorno pesadas)
 PLANTILLA_VISOR = """<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <style>
@@ -127,10 +124,10 @@ document.getElementById('visor').appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+const light = new THREE.HemisphereLight(0xffffff, 0x666666, 1.2);
 scene.add(light);
 const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(10, 20, 10);
+dirLight.position.set(20, 30, 20);
 scene.add(dirLight);
 
 const loader = new GLTFLoader();
@@ -144,7 +141,7 @@ loader.load("__GLB_B64__", function (gltf) {
     const maxDim = Math.max(size.x, size.y, size.z);
     
     controls.target.copy(center);
-    camera.position.set(center.x + maxDim * 1.2, center.y + maxDim, center.z + maxDim * 1.2);
+    camera.position.set(center.x + maxDim * 1.1, center.y + maxDim * 0.9, center.z + maxDim * 1.1);
     controls.update();
 });
 
@@ -175,7 +172,7 @@ function animate() {
 animate();
 </script></body></html>"""
 
-def construir_html_visor(proyectos, altura=600):
+def construir_html_visor(proyectos, altura=650):
     aprobadas = {}
     for p in proyectos:
         if p.get("Aprobado") and p.get("Zona") in ZONAS:
@@ -198,8 +195,7 @@ def construir_html_visor(proyectos, altura=600):
     html_final = PLANTILLA_VISOR.replace("__GLB_B64__", glb_data_url).replace("__HOTSPOTS__", puntos_html)
     return components.html(html_final, height=altura, scrolling=False)
 
-
-# ESTILOS CORPORATIVOS
+# 5. ESTILOS CORPORATIVOS
 st.markdown(
     """
     <style>
@@ -219,14 +215,12 @@ st.markdown(
 def cop(valor): return f"${valor:,.0f}".replace(",", ".")
 
 def app_principal():
-    st.markdown('<div class="topbar"><h2>Coca-Cola FEMSA | DSS CAPEX Barranquilla</h2><p style="margin:0; color:#555;">Soporte de Decisión Multicriterio (AHP/TOPSIS) e Integración 3D</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="topbar"><h2>Coca-Cola FEMSA | DSS CAPEX Barranquilla</h2><p style="margin:0; color:#555;">Sistema Integrado de Toma de Decisiones y Gemelo Digital</p></div>', unsafe_allow_html=True)
     
-    if "proyectos" not in st.session_state:
-        st.session_state.proyectos = []
-    if "presupuesto" not in st.session_state:
-        st.session_state.presupuesto = 1500000000
+    if "proyectos" not in st.session_state: st.session_state.proyectos = []
+    if "presupuesto" not in st.session_state: st.session_state.presupuesto = 1500000000
 
-    t1, t2, t3, t4 = st.tabs(["Presupuesto y Criterios", "Registrar Proyecto", "Análisis TOPSIS y Portafolio", "Dashboard 3D"])
+    t1, t2, t3, t4 = st.tabs(["Presupuesto y Criterios", "Registrar Proyecto", "Portafolio y Optimización", "Dashboard 3D e Indicadores"])
     
     with t1:
         st.markdown('<p class="sec-title">Restricción de Capital y Matriz de Criterios (AHP)</p>', unsafe_allow_html=True)
@@ -245,25 +239,48 @@ def app_principal():
             ca, cb = st.columns(2)
             for i, c in enumerate(CRITERIOS):
                 col = ca if i % 2 == 0 else cb
-                # AQUÍ REGRESAN LOS NOMBRES COMPLETOS A LOS SLIDERS
+                # Los nombres de los criterios están completos aquí
                 puntos[c["id"]] = col.slider(f"{c['id']}: {c['nombre']} ({c['tipo']})", 1, 10, 5)
             
             if st.form_submit_button("Registrar Proyecto") and nom and cost > 0:
                 st.session_state.proyectos.append({"Proyecto": nom, "Zona": zon, "CAPEX (COP)": cost, "Aprobado": False, **puntos})
-                st.success("Proyecto registrado.")
+                st.success("Proyecto registrado con éxito.")
 
     with t3:
-        st.markdown('<p class="sec-title">Optimización del Portafolio: Algoritmo TOPSIS</p>', unsafe_allow_html=True)
-        modelo = st.selectbox("Modelo Analítico", ["Alternativa 1: Optimización TOPSIS con Restricción Presupuestaria", "Alternativa 2: Ponderación Simple"])
+        st.markdown('<p class="sec-title">Cálculos Matemáticos y Optimización del Portafolio</p>', unsafe_allow_html=True)
+        
+        # EL SELECTOR DE MODELOS AHORA SÍ CAMBIA LA LÓGICA Y LOS RESULTADOS
+        modelo = st.selectbox(
+            "Seleccione el Modelo de Decisión para evaluar el Portafolio:", 
+            [
+                "Alternativa 1 - Modelo 1: TOPSIS + Restricción de Presupuesto (Prioriza Valor/Costo)", 
+                "Alternativa 1 - Modelo 2: TOPSIS Ranking Directo (Prioriza solo el Score ideal)",
+                "Alternativa 2 - Modelo 1: Ponderación Simple AHP (Suma ponderada clásica)"
+            ]
+        )
         
         if not st.session_state.proyectos:
             st.info("Registre proyectos para realizar el análisis.")
             return
 
         df_raw = pd.DataFrame(st.session_state.proyectos)
-        df_calc = calcular_topsis(df_raw, CRITERIOS)
         
-        df_sorted = df_calc.sort_values(by="Score TOPSIS ($CC_i$)", ascending=False).copy()
+        # APLICACIÓN DE LA LÓGICA SEGÚN EL MODELO SELECCIONADO
+        if "Ponderación Simple" in modelo:
+            df_calc = calcular_ponderacion_simple(df_raw, CRITERIOS)
+            # Ordenar por Score Analítico
+            df_sorted = df_calc.sort_values(by="Score Analítico", ascending=False).copy()
+        elif "Ranking Directo" in modelo:
+            df_calc = calcular_topsis(df_raw, CRITERIOS)
+            # Ordenar solo por Score TOPSIS
+            df_sorted = df_calc.sort_values(by="Score Analítico", ascending=False).copy()
+        else: # TOPSIS + Presupuesto (Valor/Costo)
+            df_calc = calcular_topsis(df_raw, CRITERIOS)
+            # Ordenar por Eficiencia: Score / Costo
+            df_calc["Eficiencia (Score/CAPEX)"] = df_calc["Score Analítico"] / df_calc["CAPEX (COP)"]
+            df_sorted = df_calc.sort_values(by="Eficiencia (Score/CAPEX)", ascending=False).copy()
+
+        # Selección de proyectos hasta que se acabe el presupuesto
         acum, sel = 0, []
         for _, row in df_sorted.iterrows():
             if acum + row["CAPEX (COP)"] <= st.session_state.presupuesto:
@@ -274,99 +291,93 @@ def app_principal():
         df_sorted["Seleccionado"] = sel
         df_opt = df_sorted[df_sorted["Seleccionado"]].copy()
 
+        # Guardar estado de aprobados para el Dashboard
         aprobados_set = set(df_opt["Proyecto"])
         for p in st.session_state.proyectos:
             p["Aprobado"] = p["Proyecto"] in aprobados_set
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Proyectos Evaluados", len(df_raw))
-        c2.metric("Inversión Óptima Asignada", cop(df_opt["CAPEX (COP)"].sum()))
-        c3.metric("Eficiencia del Capital", f"{(df_opt['CAPEX (COP)'].sum() / st.session_state.presupuesto) * 100:.1f}%" if st.session_state.presupuesto > 0 else "0%")
-
-        st.markdown("##### Matriz de Decisión y Resultados TOPSIS")
+        st.markdown("##### Matriz de Resultados del Modelo Elegido")
         st.dataframe(df_sorted.drop(columns=["Seleccionado"]), use_container_width=True)
 
-        st.markdown("---")
-        st.markdown("##### 📈 Gráficas Analíticas del Portafolio")
-        
-        col_g1, col_g2 = st.columns(2, gap="large")
-        
-        with col_g1:
-            # AQUÍ REGRESA LA GRÁFICA DE COSTO CAPEX MEJORADA
-            fig_capex = px.bar(df_opt, x="Proyecto", y="CAPEX (COP)", text_auto='.2s', 
-                               title="Inversión CAPEX por Proyecto Aprobado",
-                               color="CAPEX (COP)", color_continuous_scale=["#f8d7da", "#880007"])
-            fig_capex.update_layout(plot_bgcolor="rgba(0,0,0,0)", showlegend=False)
-            st.plotly_chart(fig_capex, use_container_width=True)
-
-        with col_g2:
-            # AQUÍ ESTÁ LA NUEVA GRÁFICA DEL PUNTO IDEAL (Dispersión con líneas conectadas)
+        if "TOPSIS" in modelo:
+            st.markdown("---")
+            st.markdown("##### 🎯 Gráfica del Punto Ideal (Solución A+ y Distancias)")
+            
+            # Gráfica Cartesiana 2D demostrando la distancia al Punto Ideal
             fig_topsis = go.Figure()
+            max_d_minus = df_sorted["Distancia A- ($d_i^-$)"].max() * 1.1 
             
-            max_d_minus = df_sorted["Distancia A- ($d_i^-$)"].max() * 1.15 # Margen superior
-            
-            # 1. Trazar el Punto Ideal (Estrella Dorada)
+            # 1. Trazar el Punto Ideal (Estrella Dorada en x=0, y=Max)
             fig_topsis.add_trace(go.Scatter(
-                x=[0], y=[max_d_minus],
-                mode="markers+text",
-                marker=dict(color="#FFD700", size=20, symbol="star", line=dict(color="black", width=1)),
-                text=["<b>Punto Ideal (A+)</b>"],
-                textposition="top center",
-                name="Solución Ideal"
+                x=[0], y=[max_d_minus], mode="markers+text",
+                marker=dict(color="#FFD700", size=22, symbol="star", line=dict(color="black", width=1)),
+                text=["<b>PUNTO IDEAL (A+)</b>"], textposition="top right", name="Solución Ideal"
             ))
 
             # 2. Trazar los proyectos evaluados
             fig_topsis.add_trace(go.Scatter(
-                x=df_sorted["Distancia A+ ($d_i^+$)"],
-                y=df_sorted["Distancia A- ($d_i^-$)"],
-                mode="markers+text",
-                marker=dict(color="#1B7F3B", size=12),
-                text=df_sorted["Proyecto"],
-                textposition="bottom center",
-                name="Proyectos Evaluados"
+                x=df_sorted["Distancia A+ ($d_i^+$)"], y=df_sorted["Distancia A- ($d_i^-$)"],
+                mode="markers+text", marker=dict(color="#1B7F3B", size=14),
+                text=df_sorted["Proyecto"], textposition="bottom center", name="Proyectos"
             ))
 
-            # 3. Trazar las líneas desde cada proyecto hasta el Punto Ideal (Distancia)
+            # 3. Líneas punteadas desde el proyecto hasta el Punto Ideal
             for i, row in df_sorted.iterrows():
                 fig_topsis.add_trace(go.Scatter(
-                    x=[0, row["Distancia A+ ($d_i^+$)"]],
-                    y=[max_d_minus, row["Distancia A- ($d_i^-$)"]],
-                    mode="lines",
-                    line=dict(color="#F40009", dash="dot", width=1.5),
-                    showlegend=False
+                    x=[0, row["Distancia A+ ($d_i^+$)"]], y=[max_d_minus, row["Distancia A- ($d_i^-$)"]],
+                    mode="lines", line=dict(color="#F40009", dash="dot", width=1.5), showlegend=False
                 ))
 
             fig_topsis.update_layout(
-                title="Distancia Euclidiana hacia el Punto Ideal (TOPSIS)",
+                title="Mapa 2D de Distancias al Punto Ideal (Se busca estar lo más cerca a la Estrella Dorada)",
                 xaxis_title="Distancia al Ideal (d⁺) ➔ ¡Cercano a 0 es mejor!",
                 yaxis_title="Distancia al Anti-Ideal (d⁻) ➔ ¡Mayor es mejor!",
                 plot_bgcolor="rgba(0,0,0,0)",
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
-            fig_topsis.update_xaxes(showgrid=True, gridcolor='LightGrey', range=[-0.05, df_sorted["Distancia A+ ($d_i^+$)"].max() * 1.2])
+            fig_topsis.update_xaxes(showgrid=True, gridcolor='LightGrey', range=[-0.02, df_sorted["Distancia A+ ($d_i^+$)"].max() * 1.2])
             fig_topsis.update_yaxes(showgrid=True, gridcolor='LightGrey')
-            
             st.plotly_chart(fig_topsis, use_container_width=True)
 
     with t4:
-        st.markdown('<p class="sec-title">Dashboard Ejecutivo - Gemelo Digital 3D de Planta</p>', unsafe_allow_html=True)
-        col_3d, col_panel = st.columns([3.5, 1.2], gap="medium")
+        st.markdown('<p class="sec-title">Dashboard Analítico y Gemelo Digital 3D</p>', unsafe_allow_html=True)
+        
+        aprobados = [p for p in st.session_state.proyectos if p["Aprobado"]]
+        capex_usado = sum(p["CAPEX (COP)"] for p in aprobados)
+        presupuesto = st.session_state.presupuesto
+        
+        # 1. MÉTRICAS CLAVE (KPIs del Dashboard)
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Proyectos Aprobados", len(aprobados))
+        m2.metric("Inversión CAPEX Total", cop(capex_usado))
+        m3.metric("Presupuesto Restante", cop(presupuesto - capex_usado))
+        m4.metric("Eficiencia de Asignación (%)", f"{(capex_usado / presupuesto) * 100:.1f}%" if presupuesto > 0 else "0%")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # 2. VISOR 3D Y GRÁFICAS DE DISTRIBUCIÓN
+        col_3d, col_graficas = st.columns([2.5, 1.5], gap="large")
         
         with col_3d:
-            construir_html_visor(st.session_state.proyectos, altura=650)
+            st.markdown("##### 🏭 Visualización Espacial (Zonas Aprobadas)")
+            construir_html_visor(st.session_state.proyectos, altura=550)
             
-        with col_panel:
-            st.markdown("##### 📌 Portafolio Vigente")
-            aprobados = [p for p in st.session_state.proyectos if p["Aprobado"]]
+        with col_graficas:
+            st.markdown("##### 📊 Distribución y Costos")
             if aprobados:
-                for p in aprobados:
-                    st.markdown(
-                        f"""<div style="background:#fff; border-left:4px solid #1B7F3B; padding:10px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.1); border-radius: 4px;">
-                        <strong>{p['Proyecto']}</strong><br><small style="color:#555;">{p['Zona']}</small><br><span style="color:#1B7F3B; font-weight:bold;">{cop(p['CAPEX (COP)'])}</span>
-                        </div>""", unsafe_allow_html=True
-                    )
+                df_ap = pd.DataFrame(aprobados)
+                
+                # Gráfica Circular: Distribución de Presupuesto por Zona
+                fig_pie = px.pie(df_ap, values="CAPEX (COP)", names="Zona", title="CAPEX Aprobado por Zona", hole=0.4, color_discrete_sequence=px.colors.qualitative.Set2)
+                fig_pie.update_layout(margin=dict(t=40, b=10, l=10, r=10))
+                st.plotly_chart(fig_pie, use_container_width=True, height=250)
+                
+                # Gráfica de Barras: Costo CAPEX de Proyectos
+                fig_bar = px.bar(df_ap, x="Proyecto", y="CAPEX (COP)", text_auto='.2s', title="Costo CAPEX por Proyecto Aprobado", color="CAPEX (COP)", color_continuous_scale=["#f8d7da", "#880007"])
+                fig_bar.update_layout(plot_bgcolor="rgba(0,0,0,0)", showlegend=False, margin=dict(t=40, b=10, l=10, r=10))
+                st.plotly_chart(fig_bar, use_container_width=True, height=250)
             else:
-                st.warning("No hay proyectos aprobados en el portafolio actual.")
+                st.info("No hay proyectos aprobados en el portafolio para mostrar métricas.")
 
 if __name__ == "__main__":
     app_principal()
